@@ -41,6 +41,8 @@ h1{font:700 30px/1.1 var(--f-display);letter-spacing:-.01em;margin:0}
 .langbar select{min-height:32px;font-size:13px;padding:3px 8px}
 .quick{list-style:none;display:flex;flex-wrap:wrap;gap:6px 22px;margin:12px 0 0;padding:0;color:var(--ink);font-size:13.5px}
 .quick li{padding-left:0}
+.sw{width:28px;height:28px;border-radius:6px;border:2px solid var(--line);cursor:pointer;padding:0}
+.sw:hover{border-color:var(--accent)}
 .foot{margin-top:26px;text-align:center;color:var(--muted);font-size:12.5px}
 .foot a{color:var(--muted)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -73,12 +75,18 @@ body.dragging .drop{border-color:var(--accent);outline:3px solid var(--accent)}
 .bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-bottom:8px}
 .bar .scrub{flex:1 1 140px;min-width:110px}
 .bar .fl{font:12.5px var(--f-mono);color:var(--muted);white-space:nowrap}
-.mat{background-color:var(--mat);background-image:linear-gradient(var(--matline) 1px,transparent 1px),linear-gradient(90deg,var(--matline) 1px,transparent 1px);background-size:24px 24px;border-radius:12px;padding:24px;display:flex;justify-content:center;align-items:center;min-height:300px;overflow:auto}
-.view{position:relative;line-height:0;flex:0 0 auto}
+.mat{background-color:var(--mat);background-image:linear-gradient(var(--matline) 1px,transparent 1px),linear-gradient(90deg,var(--matline) 1px,transparent 1px);background-size:24px 24px;border-radius:12px;padding:24px;display:flex;min-height:300px;overflow:auto}
+.mat .view{margin:auto}
+.view.pannable canvas{cursor:grab}
+.view.grabbing canvas{cursor:grabbing}
+kbd{font:12px var(--f-mono);background:var(--field);border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin-right:6px}
+.keys{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13px}
+.view{position:relative;line-height:0;flex:0 0 auto;overflow:hidden}
+.cropbox{position:absolute;border:2px dashed #fff;outline:1px solid #000;box-shadow:0 0 0 9999px rgba(0,0,0,.38);pointer-events:none}
 .view canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
 .view.pix canvas{image-rendering:pixelated}
 .view.checker{background-color:var(--chk-a);background-image:linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%),linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%);background-size:16px 16px;background-position:0 0,8px 8px}
-.view.pickmode canvas,.view.wandmode canvas{cursor:crosshair}
+.view.pickmode canvas,.view.wandmode canvas,.view.cropmode canvas{cursor:crosshair}
 .view.brush canvas{cursor:none;touch-action:none}
 .divider{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent);pointer-events:none}
 .ring{position:absolute;border-radius:50%;pointer-events:none;border:1.5px solid #fff;box-shadow:0 0 0 1px #000,inset 0 0 0 1px #000;transform:translate(-50%,-50%)}
@@ -169,6 +177,7 @@ details.sec>.body{padding-top:10px}
         <button class="btn" id="play" type="button" data-skip>暂停</button>
         <button class="btn" id="undo" type="button" title="撤销 (Ctrl+Z)" disabled>撤销</button>
         <button class="btn" id="redo" type="button" title="重做 (Ctrl+Y)" disabled>重做</button>
+        <button class="btn" id="copyPng" type="button" title="把当前帧作为透明 PNG 复制到剪贴板">复制此帧</button>
         <input class="scrub" type="range" id="scrub" min="0" max="0" value="0" aria-label="帧位置">
         <span class="fl" id="fl" data-skip></span>
       </div>
@@ -177,6 +186,7 @@ details.sec>.body{padding-top:10px}
           <canvas id="cvOrig" hidden></canvas>
           <canvas id="cvOut"></canvas>
           <div class="divider" id="divider" hidden></div>
+          <div class="cropbox" id="cropBox" hidden></div>
           <div class="ring" id="ring" hidden></div>
         </div>
       </div>
@@ -197,10 +207,11 @@ details.sec>.body{padding-top:10px}
           <button class="chip" type="button" data-bg="green" aria-pressed="false">绿</button>
           <input type="color" id="pbgCol" value="#8a5cf6" aria-label="自定义预览背景">
         </div>
+        <span class="lbl">按住 C 键临时查看原图</span>
         <div class="chips">
           <span class="lbl">缩放</span>
           <select id="zoom" aria-label="缩放">
-            <option value="fit">适应</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option>
+            <option value="fit">适应</option><option value="z" data-skip hidden></option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option>
           </select>
         </div>
       </div>
@@ -218,7 +229,9 @@ details.sec>.body{padding-top:10px}
             <button class="btn" type="button" id="bgW">白</button>
             <button class="btn" type="button" id="bgB">黑</button>
             <button class="btn" type="button" id="pick" aria-pressed="false">吸管</button>
+            <button class="btn" type="button" id="pickAdd" aria-pressed="false" title="再点一种背景色，和已有的一起去掉">追加吸管</button>
           </div>
+          <div class="row" id="bgChips" hidden></div>
           <div class="row">
             <select id="mode" aria-label="抠除范围">
               <option value="edge">只去掉与边缘相连的背景（保护主体内部）</option>
@@ -278,10 +291,12 @@ details.sec>.body{padding-top:10px}
             <button class="chip" type="button" data-tool="none" aria-pressed="true">不使用</button>
             <button class="chip" type="button" data-tool="erase" aria-pressed="false">擦除</button>
             <button class="chip" type="button" data-tool="restore" aria-pressed="false">恢复</button>
+            <button class="chip" type="button" data-tool="fill" aria-pressed="false" title="用周围的颜色把涂到的地方填上，适合补细缝">补色</button>
             <button class="chip" type="button" data-tool="wandE" aria-pressed="false" title="点一下，擦掉一整块相近的颜色">魔棒擦除</button>
             <button class="chip" type="button" data-tool="wandR" aria-pressed="false" title="点一下，恢复一整块相近的颜色">魔棒恢复</button>
           </div>
           <p class="hint">魔棒：在预览图上点一下，把点中的那一整块相近颜色擦掉（或恢复）。</p>
+          <p class="hint">勾选「作用于所有帧」后，魔棒会在每一帧里自动找到同色块，会跟着主体移动。</p>
           <div class="sl"><label for="wtol">魔棒容差</label><output id="wtolV">24</output><input type="range" id="wtol" min="0" max="100" value="24"></div>
           <div class="sl"><label for="wgrow">选区外扩（像素，盖住抗锯齿边）</label><output id="wgrowV">1</output><input type="range" id="wgrow" min="0" max="4" value="1"></div>
           <div class="row"><label class="chk"><input type="checkbox" id="wcontig" checked> 只选相连的区域（取消则选全图同色）</label></div>
@@ -305,6 +320,11 @@ details.sec>.body{padding-top:10px}
             </select>
           </div>
           <div class="sl"><label for="speed">速度</label><output id="speedV">1.00×</output><input type="range" id="speed" min="0.25" max="3" step="0.05" value="1"></div>
+          <div class="row">
+            <button class="btn" type="button" id="keepFrom">起点=当前帧</button>
+            <button class="btn" type="button" id="keepTo">终点=当前帧</button>
+            <button class="btn" type="button" id="keepAll">恢复全部帧</button>
+          </div>
           <p class="hint">取消勾选缩略图下方的方框，可以删除那一帧。抽帧会自动把留下的帧拉长，整体速度不变。</p>
         </div>
       </details>
@@ -327,11 +347,46 @@ details.sec>.body{padding-top:10px}
           <p class="hint">把抠好的动图放到新背景上再导出。</p>
         </div>
       </details>
+      <details class="sec">
+        <summary>快捷键</summary>
+        <div class="body">
+          <ul class="keys">
+            <li><kbd>Space</kbd>播放 / 暂停</li>
+            <li><kbd>←</kbd><kbd>→</kbd>上一帧 / 下一帧</li>
+            <li><kbd>E</kbd><kbd>R</kbd><kbd>F</kbd>擦除 / 恢复 / 补色画笔</li>
+            <li><kbd>W</kbd><kbd>Q</kbd>魔棒擦除 / 魔棒恢复</li>
+            <li><kbd>I</kbd>吸管</li>
+            <li><kbd>[</kbd><kbd>]</kbd>画笔变小 / 变大</li>
+            <li><kbd>Esc</kbd>退出当前工具</li>
+            <li><kbd>C</kbd>按住时显示原图</li>
+            <li><kbd>+</kbd><kbd>-</kbd><kbd>0</kbd>放大 / 缩小 / 适应窗口</li>
+            <li><kbd>Ctrl</kbd>+滚轮 或触控板双指捏合：缩放预览</li>
+            <li><kbd>Ctrl+Z</kbd><kbd>Ctrl+Y</kbd>撤销 / 重做（参数和手动修补都可以）</li>
+          </ul>
+        </div>
+      </details>
     </aside>
 
     <section class="exp" aria-label="导出选项">
       <h2>导出选项</h2>
       <div class="exopts">
+        <div class="row" style="margin:0">
+          <span class="lbl">预设</span>
+          <select id="preset" aria-label="预设">
+            <option value="none">自定义</option><option value="wechat">微信表情</option><option value="discord">Discord 表情</option><option value="slack">Slack 表情</option><option value="line">LINE 动态贴图</option>
+          </select>
+        </div>
+        <div class="row" style="margin:0">
+          <span class="lbl">最长边</span>
+          <input type="number" id="fitMax" min="0" max="4096" value="0" style="width:84px" aria-label="最长边像素">
+          <span class="mini">px（0 为按倍数缩放）</span>
+        </div>
+        <label class="chk"><input type="checkbox" id="square"> 补成正方形</label>
+        <div class="row" style="margin:0">
+          <button class="btn" type="button" id="cropBtn" aria-pressed="false">框选裁剪区域</button>
+          <button class="btn" type="button" id="cropClr">清除裁剪框</button>
+        </div>
+        <label class="chk"><input type="checkbox" id="dedupe"> 合并重复帧（GIF / APNG / WebP）</label>
         <div class="row" style="margin:0">
           <span class="lbl">尺寸</span>
           <select id="xscale" aria-label="导出尺寸">
@@ -347,14 +402,24 @@ details.sec>.body{padding-top:10px}
         </div>
         <div class="sl" id="optGif1"><label for="gta">GIF 透明阈值</label><output id="gtaV">128</output><input type="range" id="gta" min="1" max="254" value="128"></div>
         <label class="chk" id="optTarget">目标大小 <input type="number" id="target" min="0" max="100" step="0.5" value="0" style="width:72px" aria-label="目标大小 MB"> MB（0 为不限制，自动缩小尺寸）</label>
+        <div class="row" id="optGcol" style="margin:0">
+          <span class="lbl">GIF 颜色数</span>
+          <select id="gcol" aria-label="GIF 颜色数"><option value="255" selected>255</option><option value="128">128</option><option value="64">64</option><option value="32">32</option><option value="16">16</option></select>
+        </div>
+        <div class="row" id="optGmat" style="margin:0">
+          <span class="lbl">GIF 边缘预混合</span>
+          <select id="gmat" aria-label="GIF 边缘预混合"><option value="none">不处理</option><option value="white">白色底</option><option value="black">黑色底</option><option value="custom">自定义</option></select>
+          <input type="color" id="gmatColor" value="#2b2f36" aria-label="预混合底色" hidden>
+        </div>
         <label class="chk" id="optGif2"><input type="checkbox" id="dither"> GIF 抖动（渐变更平滑）</label>
         <div class="sl" id="optWebp" hidden><label for="wq">WebP 画质（100 为无损）</label><output id="wqV" data-skip>90</output><input type="range" id="wq" min="40" max="100" value="90"></div>
         <label class="chk" id="optSprite" hidden>精灵图列数 <input type="number" id="cols" min="0" max="64" value="0" style="width:72px" placeholder="自动"></label>
       </div>
-      <p class="hint" style="margin-top:10px" id="fmtHint" data-skip></p>
+      <p class="hint" style="margin-top:10px">预设的数值仅供参考，各平台规则可能变化，请以平台最新要求为准。</p>
+      <p class="hint" style="margin-top:6px" id="fmtHint" data-skip></p>
     </section>
   </main>
-  <footer class="foot"><span>免费开源 · MIT 许可证 · 所有处理都在你的浏览器里完成</span> · <a href="https://github.com/WeaverVictorWings/gif-cutout" target="_blank" rel="noopener">GitHub</a> · v1.0.0</footer>
+  <footer class="foot"><span>免费开源 · MIT 许可证 · 所有处理都在你的浏览器里完成</span> · <a href="https://github.com/WeaverVictorWings/gif-cutout" target="_blank" rel="noopener">GitHub</a> · v2.0.0</footer>
 </div>
 
 <div class="dock" id="dock">
@@ -379,9 +444,9 @@ details.sec>.body{padding-top:10px}
 'use strict';
 const $=s=>document.querySelector(s);
 /* ============ 多语言 ============ */
-const LANGS=[['zh-CN','简体中文'],['en','English'],['ja','日本語'],['ru','Русский'],['es','Español'],['ko','한국어']];
-const LANG_IDX={en:0,ja:1,ru:2,es:3,ko:4};
-const DICT={"GIF 抠底台":["GIF Cutout","GIF背景カッター","GIF Cutout","GIF Cutout","GIF 배경 제거기"],"拖入动图，去掉白底或黑底，导出透明 GIF、APNG、WebP、序列帧或精灵图。所有处理都在你的浏览器里完成，文件不会上传。":["Drop in an animated GIF, remove the white or black background, and export a transparent GIF, APNG, WebP, PNG sequence or sprite sheet. Everything runs in your browser; nothing is uploaded.","アニメGIFをドロップして白背景・黒背景を消し、透過GIF・APNG・WebP・PNG連番・スプライトシートで書き出せます。処理はすべてブラウザ内で完結し、ファイルはアップロードされません。","Перетащите анимированный GIF, удалите белый или чёрный фон и сохраните прозрачный GIF, APNG, WebP, последовательность PNG или спрайт-лист. Всё работает в браузере, файлы никуда не загружаются.","Arrastra un GIF animado, quita el fondo blanco o negro y exporta un GIF, APNG, WebP, secuencia PNG u hoja de sprites con transparencia. Todo se procesa en tu navegador; no se sube nada.","움직이는 GIF를 끌어다 놓고 흰색·검은색 배경을 지운 뒤 투명 GIF, APNG, WebP, PNG 시퀀스, 스프라이트 시트로 내보내세요. 모든 처리는 브라우저 안에서 이뤄지며 파일은 업로드되지 않습니다."],"1. 拖入或选择一个动图":["1. Drop or choose an animation","1. アニメをドロップ／選択","1. Перетащите или выберите анимацию","1. Arrastra o elige una animación","1. 애니메이션을 끌어다 놓거나 선택"],"2. 看预览，边缘不干净就调「容差」":["2. Check the preview; raise Tolerance if edges look dirty","2. プレビューを確認し、縁が汚ければ「許容値」を調整","2. Смотрите превью; если края грязные — увеличьте «Допуск»","2. Mira la vista previa; si los bordes se ven sucios, sube la «Tolerancia»","2. 미리보기를 보고 가장자리가 지저분하면 「허용치」 조정"],"3. 点底部的大按钮导出":["3. Hit the big button at the bottom to export","3. 下の大きなボタンで書き出し","3. Нажмите большую кнопку внизу, чтобы сохранить","3. Pulsa el botón grande de abajo para exportar","3. 아래의 큰 버튼으로 내보내기"],"选择文件":["Choose file","ファイルを選択","Выбрать файл","Elegir archivo","파일 선택"],"批量处理":["Batch","一括処理","Пакетная обработка","Procesar por lotes","일괄 처리"],"批量选文件夹":["Batch from folder","フォルダで一括","Пакет из папки","Lote desde carpeta","폴더로 일괄"],"支持 GIF（推荐）、APNG、WebP、PNG、JPG。可拖入页面，也可 Ctrl+V 粘贴。":["Supports GIF (recommended), APNG, WebP, PNG, JPG. Drag onto the page or paste with Ctrl+V.","GIF（推奨）・APNG・WebP・PNG・JPGに対応。ページへのドラッグや Ctrl+V の貼り付けもOK。","Поддерживаются GIF (лучше всего), APNG, WebP, PNG, JPG. Перетащите на страницу или вставьте через Ctrl+V.","Admite GIF (recomendado), APNG, WebP, PNG y JPG. Arrástralo a la página o pégalo con Ctrl+V.","GIF(권장), APNG, WebP, PNG, JPG 지원. 페이지에 끌어다 놓거나 Ctrl+V로 붙여넣기."],"没有素材？":["No file handy?","素材がない？","Нет файла?","¿No tienes un archivo?","파일이 없나요?"],"白底示例":["White sample","白背景サンプル","Образец: белый фон","Ejemplo fondo blanco","흰 배경 예시"],"黑底示例":["Black sample","黒背景サンプル","Образец: чёрный фон","Ejemplo fondo negro","검은 배경 예시"],"暂停":["Pause","一時停止","Пауза","Pausa","일시정지"],"播放":["Play","再生","Играть","Reproducir","재생"],"撤销 (Ctrl+Z)":["Undo (Ctrl+Z)","元に戻す (Ctrl+Z)","Отменить (Ctrl+Z)","Deshacer (Ctrl+Z)","실행 취소 (Ctrl+Z)"],"撤销":["Undo","元に戻す","Отмена","Deshacer","실행 취소"],"重做 (Ctrl+Y)":["Redo (Ctrl+Y)","やり直し (Ctrl+Y)","Повторить (Ctrl+Y)","Rehacer (Ctrl+Y)","다시 실행 (Ctrl+Y)"],"重做":["Redo","やり直し","Повтор","Rehacer","다시 실행"],"帧位置":["Frame position","フレーム位置","Позиция кадра","Posición del fotograma","프레임 위치"],"查看方式":["View mode","表示モード","Режим просмотра","Modo de vista","보기 방식"],"查看":["View","表示","Вид","Vista","보기"],"抠图结果":["Result","結果","Результат","Resultado","결과"],"原图":["Original","元画像","Оригинал","Original","원본"],"对比":["Compare","比較","Сравнить","Comparar","비교"],"透明度":["Alpha","アルファ","Альфа","Alfa","알파"],"对比位置":["Compare position","比較位置","Позиция сравнения","Posición de comparación","비교 위치"],"预览背景":["Preview BG","プレビュー背景","Фон превью","Fondo de vista","미리보기 배경"],"棋盘":["Checker","市松模様","Шахматка","Cuadros","체크무늬"],"白":["White","白","Белый","Blanco","흰색"],"黑":["Black","黒","Чёрный","Negro","검정"],"绿":["Green","緑","Зелёный","Verde","초록"],"自定义预览背景":["Custom preview background","プレビュー背景色を指定","Свой фон превью","Fondo de vista personalizado","미리보기 배경색 지정"],"缩放":["Zoom","ズーム","Масштаб","Zoom","확대"],"适应":["Fit","合わせる","Вписать","Ajustar","맞춤"],"帧列表":["Frame list","フレーム一覧","Список кадров","Lista de fotogramas","프레임 목록"],"参数":["Settings","設定","Настройки","Ajustes","설정"],"抠图":["Cutout","切り抜き","Вырезание","Recorte","배경 제거"],"要去掉的背景色":["Background colour to remove","消す背景色","Удаляемый цвет фона","Color de fondo a quitar","지울 배경색"],"自动识别":["Auto-detect","自動検出","Авто","Detectar","자동 감지"],"吸管":["Eyedropper","スポイト","Пипетка","Cuentagotas","스포이트"],"抠除范围":["Removal scope","消す範囲","Область удаления","Alcance","제거 범위"],"只去掉与边缘相连的背景（保护主体内部）":["Only background connected to the edge (protects the subject)","縁につながる背景だけ消す（被写体の内側を保護）","Только фон, связанный с краем (защищает объект)","Solo el fondo conectado al borde (protege el sujeto)","가장자리와 이어진 배경만 (피사체 내부 보호)"],"去掉画面中所有相近颜色":["All similar colours in the image","画面内の近い色をすべて消す","Все похожие цвета на кадре","Todos los colores similares","화면의 비슷한 색 모두"],"容差":["Tolerance","許容値","Допуск","Tolerancia","허용치"],"穿透保护（挡住细线）":["Leak guard (blocks thin lines)","リーク防止（細い線を遮る）","Защита от протечек (тонкие линии)","Anti-fugas (bloquea líneas finas)","누출 방지 (가는 선 차단)"],"原图里的白色（或黑色）细线连着外面时，背景会顺着它钻进主体，抠出一条条缝。数值越大，能挡住的线越粗。":["If thin white (or black) lines in the source connect to the outside, the removal can leak along them and cut slits into the subject. Higher values block thicker lines.","元画像の白（または黒）の細い線が外側とつながっていると、背景がその線に沿って被写体に入り込み、筋状に抜けてしまいます。値が大きいほど太い線まで遮れます。","Если тонкие белые (или чёрные) линии в исходнике соединены с внешним фоном, удаление «протекает» по ним и прорезает щели в объекте. Чем больше значение, тем более толстые линии блокируются.","Si hay líneas finas blancas (o negras) en el original conectadas con el exterior, el borrado se «filtra» por ellas y abre rendijas en el sujeto. Cuanto mayor el valor, más gruesas las líneas que bloquea.","원본의 가는 흰색(또는 검은색) 선이 바깥과 이어져 있으면 배경이 선을 따라 피사체 안으로 번져 틈이 생깁니다. 값이 클수록 더 굵은 선까지 막습니다."],"去除杂点（面积）":["Remove specks (area)","ごみ除去（面積）","Удаление пятен (площадь)","Quitar motas (área)","잡티 제거 (면적)"],"自动补缝（填平主体内的细缝）":["Auto-fill gaps (close slits in subject)","自動すき間埋め（被写体内の細い隙間）","Автозаливка щелей (внутри объекта)","Rellenar huecos (rendijas en el sujeto)","틈 자동 채우기 (피사체 내부)"],"原图本身就带透明缝时，穿透保护救不回来，用这个：数值越大，能补的缝越宽。太大会把手指之间等细小空隙也填上。":["Use this when the source already has transparent slits that Leak guard cannot recover. Higher values fill wider gaps, but too high also fills small real gaps such as between fingers.","元画像にもともと透明の筋がある場合、リーク防止では直せません。その時はこちら。値が大きいほど広い隙間を埋めますが、大きすぎると指の間のような本来の隙間も埋まります。","Используйте, если в исходнике уже есть прозрачные щели, которые защита не исправит. Чем больше значение, тем шире заливаемые зазоры; слишком большое заполнит и настоящие мелкие промежутки (например, между пальцами).","Úsalo cuando el original ya tenga rendijas transparentes que Anti-fugas no puede recuperar. Cuanto mayor el valor, más ancho el hueco que rellena; si es muy alto también tapa huecos reales pequeños (p. ej. entre dedos).","원본에 이미 투명한 틈이 있어 누출 방지로 복구되지 않을 때 사용하세요. 값이 클수록 넓은 틈을 메우지만, 너무 크면 손가락 사이 같은 실제 틈도 메워집니다."],"边缘平滑（像素）":["Edge smoothing (px)","エッジのぼかし（px）","Сглаживание края (px)","Suavizado de borde (px)","가장자리 부드럽게 (px)"],"去白边 / 黑边":["Remove halo","フチ除去（白／黒）","Убрать ореол","Quitar halo","헤일로 제거"],"边缘收缩（像素）":["Edge shrink (px)","エッジ縮小（px）","Сжатие края (px)","Contraer borde (px)","가장자리 축소 (px)"],"恢复默认参数":["Reset settings","設定をリセット","Сбросить настройки","Restablecer ajustes","설정 초기화"],"特效与调色":["Effects & colour","エフェクトと色調","Эффекты и цвет","Efectos y color","효과 및 색상"],"描边":["Outline","輪郭線","Обводка","Contorno","외곽선"],"加描边":["Add outline","輪郭線を付ける","Добавить обводку","Añadir contorno","외곽선 추가"],"描边颜色":["Outline colour","輪郭線の色","Цвет обводки","Color del contorno","외곽선 색"],"宽度（像素）":["Width (px)","幅（px）","Ширина (px)","Ancho (px)","너비 (px)"],"投影":["Shadow","影","Тень","Sombra","그림자"],"无投影":["No shadow","影なし","Без тени","Sin sombra","그림자 없음"],"柔和投影":["Soft shadow","ソフトな影","Мягкая тень","Sombra suave","부드러운 그림자"],"硬投影":["Hard shadow","ハードな影","Жёсткая тень","Sombra dura","선명한 그림자"],"投影颜色":["Shadow colour","影の色","Цвет тени","Color de la sombra","그림자 색"],"投影距离（像素）":["Shadow offset (px)","影の距離（px）","Смещение тени (px)","Desplazamiento (px)","그림자 거리 (px)"],"发光边":["Glow","グロー","Свечение","Resplandor","글로우"],"加发光":["Add glow","グローを付ける","Добавить свечение","Añadir resplandor","글로우 추가"],"发光颜色":["Glow colour","グローの色","Цвет свечения","Color del resplandor","글로우 색"],"发光范围（像素）":["Glow radius (px)","グローの範囲（px）","Радиус свечения (px)","Radio del resplandor (px)","글로우 범위 (px)"],"调色":["Colour","色調","Цвет","Color","색상"],"亮度":["Brightness","明るさ","Яркость","Brillo","밝기"],"饱和度":["Saturation","彩度","Насыщенность","Saturación","채도"],"整体透明度":["Overall opacity","全体の不透明度","Общая непрозрачность","Opacidad total","전체 불투명도"],"反相":["Invert","色反転","Инверсия","Invertir","반전"],"彩虹循环":["Rainbow cycle","レインボー循環","Радужный цикл","Ciclo arcoíris","무지개 순환"],"幽灵":["Ghost","ゴースト","Призрак","Fantasma","유령"],"手动修补":["Manual touch-up","手動修正","Ручная правка","Retoque manual","수동 보정"],"笔刷":["Brush","ブラシ","Кисть","Pincel","브러시"],"不使用":["Off","使わない","Выкл.","Desactivado","사용 안 함"],"擦除":["Erase","消去","Стереть","Borrar","지우기"],"恢复":["Restore","復元","Вернуть","Restaurar","복원"],"点一下，擦掉一整块相近的颜色":["Click to erase a whole block of similar colour","クリックで近い色のかたまりを消去","Щёлк — стереть весь участок похожего цвета","Clic para borrar todo un bloque de color similar","클릭하면 비슷한 색 덩어리를 지웁니다"],"魔棒擦除":["Wand erase","自動選択で消去","Палочка: стереть","Varita: borrar","마술봉 지우기"],"点一下，恢复一整块相近的颜色":["Click to restore a whole block of similar colour","クリックで近い色のかたまりを復元","Щёлк — вернуть весь участок похожего цвета","Clic para restaurar todo un bloque de color similar","클릭하면 비슷한 색 덩어리를 복원합니다"],"魔棒恢复":["Wand restore","自動選択で復元","Палочка: вернуть","Varita: restaurar","마술봉 복원"],"魔棒：在预览图上点一下，把点中的那一整块相近颜色擦掉（或恢复）。":["Magic wand: click the preview to erase (or restore) the whole block of similar colour you clicked.","自動選択：プレビューをクリックすると、クリックした近い色のかたまりをまとめて消去（または復元）します。","Волшебная палочка: щёлкните по превью, чтобы стереть (или вернуть) весь участок похожего цвета.","Varita mágica: haz clic en la vista previa para borrar (o restaurar) todo el bloque de color similar.","마술봉: 미리보기를 클릭하면 클릭한 비슷한 색 덩어리를 한 번에 지우거나 복원합니다."],"魔棒容差":["Wand tolerance","自動選択の許容値","Допуск палочки","Tolerancia de varita","마술봉 허용치"],"选区外扩（像素，盖住抗锯齿边）":["Grow selection (px, covers anti-aliased edges)","選択範囲の拡張（px、アンチエイリアスの縁用）","Расширение выделения (px, для сглаженных краёв)","Ampliar selección (px, cubre bordes suavizados)","선택 영역 확장 (px, 안티앨리어싱 가장자리용)"],"只选相连的区域（取消则选全图同色）":["Contiguous only (uncheck to pick that colour everywhere)","つながった領域のみ（解除すると全体の同色）","Только смежная область (снимите — весь цвет на кадре)","Solo zona contigua (desmarca para todo ese color)","이어진 영역만 (해제하면 전체 같은 색)"],"笔刷大小（像素）":["Brush size (px)","ブラシサイズ（px）","Размер кисти (px)","Tamaño del pincel (px)","브러시 크기 (px)"],"作用于所有帧":["Apply to all frames","全フレームに適用","Ко всем кадрам","Aplicar a todos los fotogramas","모든 프레임에 적용"],"清除手动修改":["Clear manual edits","手動修正を消去","Сбросить правки","Borrar retoques","수동 수정 지우기"],"时间轴":["Timeline","タイムライン","Таймлайн","Línea de tiempo","타임라인"],"播放方式":["Playback","再生方式","Воспроизведение","Reproducción","재생 방식"],"正放":["Forward","順再生","Вперёд","Normal","정방향"],"倒放":["Reverse","逆再生","Назад","Inversa","역방향"],"来回播放":["Ping-pong","往復再生","Туда-обратно","Ida y vuelta","왕복"],"抽帧":["Skip frames","コマ間引き","Прореживание","Saltar fotogramas","프레임 건너뛰기"],"保留全部帧":["Keep all frames","全フレーム保持","Все кадры","Todos los fotogramas","모든 프레임 유지"],"每 2 帧留 1 帧":["Keep 1 of every 2","2コマに1コマ残す","Каждый 2-й кадр","1 de cada 2","2프레임마다 1개"],"每 3 帧留 1 帧":["Keep 1 of every 3","3コマに1コマ残す","Каждый 3-й кадр","1 de cada 3","3프레임마다 1개"],"每 4 帧留 1 帧":["Keep 1 of every 4","4コマに1コマ残す","Каждый 4-й кадр","1 de cada 4","4프레임마다 1개"],"速度":["Speed","速度","Скорость","Velocidad","속도"],"取消勾选缩略图下方的方框，可以删除那一帧。抽帧会自动把留下的帧拉长，整体速度不变。":["Untick the box under a thumbnail to delete that frame. Skipping frames lengthens the remaining ones so overall speed stays the same.","サムネイル下のチェックを外すとそのフレームを削除できます。間引いた場合は残りのフレームが長くなり、全体の速さは変わりません。","Снимите галочку под миниатюрой, чтобы удалить кадр. При прореживании оставшиеся кадры удлиняются, общая скорость не меняется.","Desmarca la casilla bajo una miniatura para eliminar ese fotograma. Al saltar fotogramas, los restantes se alargan y la velocidad total no cambia.","썸네일 아래 체크를 해제하면 해당 프레임이 삭제됩니다. 프레임을 건너뛰면 남은 프레임이 길어져 전체 속도는 그대로입니다."],"输出背景":["Output background","出力の背景","Фон результата","Fondo de salida","출력 배경"],"透明":["Transparent","透明","Прозрачный","Transparente","투명"],"纯色":["Solid colour","単色","Сплошной цвет","Color sólido","단색"],"渐变":["Gradient","グラデーション","Градиент","Degradado","그라데이션"],"颜色一":["Colour 1","色1","Цвет 1","Color 1","색 1"],"颜色二":["Colour 2","色2","Цвет 2","Color 2","색 2"],"渐变方向":["Gradient direction","グラデーションの向き","Направление градиента","Dirección del degradado","그라데이션 방향"],"上到下":["Top to bottom","上から下","Сверху вниз","De arriba abajo","위에서 아래"],"左到右":["Left to right","左から右","Слева направо","De izquierda a derecha","왼쪽에서 오른쪽"],"把抠好的动图放到新背景上再导出。":["Place the cut-out animation on a new background before exporting.","切り抜いたアニメを新しい背景に載せて書き出します。","Поместите вырезанную анимацию на новый фон перед сохранением.","Coloca la animación recortada sobre un fondo nuevo antes de exportar.","배경을 제거한 애니메이션을 새 배경 위에 올려 내보냅니다."],"导出选项":["Export options","書き出し設定","Параметры экспорта","Opciones de exportación","내보내기 옵션"],"尺寸":["Size","サイズ","Размер","Tamaño","크기"],"导出尺寸":["Export size","書き出しサイズ","Размер экспорта","Tamaño de exportación","내보내기 크기"],"像素风放大":["Pixel-art scaling","ドット絵向け拡大","Пиксельное масштабирование","Escalado pixel art","픽셀아트 확대"],"裁掉透明边":["Trim transparent edges","透明な余白を切り詰める","Обрезать прозрачные края","Recortar bordes transparentes","투명 여백 자르기"],"留白":["Padding","余白","Отступ","Margen","여백"],"留白像素":["Padding pixels","余白ピクセル","Отступ в пикселях","Píxeles de margen","여백 픽셀"],"GIF 透明阈值":["GIF transparency threshold","GIF透過のしきい値","Порог прозрачности GIF","Umbral de transparencia GIF","GIF 투명도 임계값"],"目标大小":["Target size","目標サイズ","Целевой размер","Tamaño objetivo","목표 크기"],"目标大小 MB":["Target size in MB","目標サイズ（MB）","Целевой размер, МБ","Tamaño objetivo en MB","목표 크기(MB)"],"MB（0 为不限制，自动缩小尺寸）":["MB (0 = no limit; scales down automatically)","MB（0で無制限。自動で縮小）","МБ (0 — без ограничения; уменьшает размер автоматически)","MB (0 = sin límite; reduce el tamaño solo)","MB (0은 제한 없음, 자동으로 크기 축소)"],"GIF 抖动（渐变更平滑）":["GIF dithering (smoother gradients)","GIFディザ（グラデーションが滑らか）","Дизеринг GIF (плавнее градиенты)","Tramado GIF (degradados más suaves)","GIF 디더링 (그라데이션이 부드러움)"],"WebP 画质（100 为无损）":["WebP quality (100 = lossless)","WebP画質（100で可逆）","Качество WebP (100 — без потерь)","Calidad WebP (100 = sin pérdida)","WebP 품질 (100은 무손실)"],"精灵图列数":["Sprite columns","スプライトの列数","Столбцов в спрайт-листе","Columnas de sprites","스프라이트 열 수"],"自动":["Auto","自動","Авто","Auto","자동"],"导出格式":["Export format","書き出し形式","Формат экспорта","Formato de exportación","내보내기 형식"],"PNG 序列":["PNG sequence","PNG連番","PNG-кадры","Secuencia PNG","PNG 시퀀스"],"精灵图":["Sprite sheet","スプライトシート","Спрайт-лист","Hoja de sprites","스프라이트 시트"],"免费开源 · MIT 许可证 · 所有处理都在你的浏览器里完成":["Free & open source · MIT licence · everything is processed in your browser","無料・オープンソース · MITライセンス · 処理はすべてブラウザ内","Бесплатно и с открытым кодом · лицензия MIT · всё обрабатывается в вашем браузере","Gratis y de código abierto · licencia MIT · todo se procesa en tu navegador","무료 오픈소스 · MIT 라이선스 · 모든 처리는 브라우저에서 이뤄집니다"],"这不是有效的 GIF 文件":["This is not a valid GIF file","有効なGIFファイルではありません","Это не корректный файл GIF","Este no es un archivo GIF válido","올바른 GIF 파일이 아닙니다"],"GIF 尺寸无效":["Invalid GIF dimensions","GIFのサイズが不正です","Некорректный размер GIF","Dimensiones de GIF no válidas","GIF 크기가 올바르지 않습니다"],"这个 GIF 太大了（解码后超过 500MB），请先缩小尺寸或减少帧数":["This GIF is too large (over 500 MB once decoded). Please reduce its size or frame count first.","このGIFは大きすぎます（デコード後500MB超）。先にサイズかフレーム数を減らしてください。","Этот GIF слишком большой (после декодирования больше 500 МБ). Сначала уменьшите размер или число кадров.","Este GIF es demasiado grande (más de 500 MB al decodificar). Reduce antes su tamaño o fotogramas.","이 GIF는 너무 큽니다(디코딩 후 500MB 초과). 먼저 크기나 프레임 수를 줄여 주세요."],"没有读到任何画面，文件可能已损坏":["No image data found; the file may be corrupted","画像データが読み取れません。ファイルが壊れている可能性があります","Изображение не найдено, файл может быть повреждён","No se encontró ninguna imagen; el archivo puede estar dañado","이미지를 읽지 못했습니다. 파일이 손상되었을 수 있습니다"],"无法识别这个文件，目前支持 GIF、APNG、WebP、PNG、JPG":["Unrecognised file. Supported: GIF, APNG, WebP, PNG, JPG","このファイルは認識できません。対応形式：GIF・APNG・WebP・PNG・JPG","Файл не распознан. Поддерживаются: GIF, APNG, WebP, PNG, JPG","Archivo no reconocido. Compatibles: GIF, APNG, WebP, PNG, JPG","알 수 없는 파일입니다. 지원 형식: GIF, APNG, WebP, PNG, JPG"],"帧数太多（超过 1000 帧）":["Too many frames (over 1000)","フレーム数が多すぎます（1000超）","Слишком много кадров (больше 1000)","Demasiados fotogramas (más de 1000)","프레임이 너무 많습니다 (1000개 초과)"],"文件太大了，请先缩小尺寸或减少帧数":["File too large. Please reduce its size or frame count first.","ファイルが大きすぎます。先にサイズかフレーム数を減らしてください。","Файл слишком большой. Сначала уменьшите размер или число кадров.","Archivo demasiado grande. Reduce antes su tamaño o fotogramas.","파일이 너무 큽니다. 먼저 크기나 프레임 수를 줄여 주세요."],"当前浏览器无法读取动画，只载入了第一帧":["This browser cannot read the animation; only the first frame was loaded","このブラウザではアニメを読み込めないため、最初のフレームだけ読み込みました","Этот браузер не может прочитать анимацию, загружен только первый кадр","Este navegador no puede leer la animación; solo se cargó el primer fotograma","이 브라우저는 애니메이션을 읽을 수 없어 첫 프레임만 불러왔습니다"],"GIF：兼容性最好，但透明只有「有」和「没有」两档，边缘会有一点锯齿。":["GIF: most compatible, but transparency is on/off only, so edges look slightly jagged.","GIF：互換性は最高ですが、透明は「あり／なし」の2段階のみで、縁に少しギザギザが出ます。","GIF: самая широкая совместимость, но прозрачность только «есть/нет», поэтому края немного зубчатые.","GIF: la mayor compatibilidad, pero la transparencia es solo sí/no, así que los bordes salen algo dentados.","GIF: 호환성이 가장 좋지만 투명도가 있음/없음 두 단계뿐이라 가장자리가 약간 거칠어 보입니다."],"APNG：保留半透明边缘，画质最好。文件后缀是 .png，大多数浏览器和聊天软件能直接播放。":["APNG: keeps soft semi-transparent edges, best quality. The file ends in .png and plays in most browsers and chat apps.","APNG：半透明の縁を保てて画質は最良。拡張子は .png で、多くのブラウザやチャットアプリでそのまま再生できます。","APNG: сохраняет полупрозрачные края, лучшее качество. Файл с расширением .png воспроизводится в большинстве браузеров и мессенджеров.","APNG: conserva los bordes semitransparentes, la mejor calidad. El archivo termina en .png y se reproduce en la mayoría de navegadores y apps de chat.","APNG: 반투명 가장자리를 유지해 화질이 가장 좋습니다. 확장자는 .png이며 대부분의 브라우저와 메신저에서 바로 재생됩니다."],"WebP：体积通常比 APNG 小很多，同样保留半透明边缘。部分老软件不能播放。":["WebP: usually much smaller than APNG and also keeps semi-transparent edges. Some older software cannot play it.","WebP：通常APNGよりかなり小さく、半透明の縁も保てます。古いソフトでは再生できない場合があります。","WebP: обычно заметно меньше APNG и тоже сохраняет полупрозрачные края. Часть старых программ не воспроизводит.","WebP: suele pesar mucho menos que APNG y también conserva bordes semitransparentes. Algunos programas antiguos no lo reproducen.","WebP: 보통 APNG보다 훨씬 작고 반투명 가장자리도 유지합니다. 일부 오래된 소프트웨어에서는 재생되지 않습니다."],"PNG 序列：每帧一张透明 PNG，打包成 zip，附带 frames.json 记录每帧时长。适合导入视频或游戏引擎。":["PNG sequence: one transparent PNG per frame, zipped with frames.json holding each frame's duration. Good for video editors and game engines.","PNG連番：1コマ1枚の透過PNGをzipにまとめ、各コマの長さを記録した frames.json を同梱。動画編集やゲームエンジン向け。","PNG-кадры: по одному прозрачному PNG на кадр в zip, плюс frames.json с длительностью каждого кадра. Подходит для видеомонтажа и игровых движков.","Secuencia PNG: un PNG transparente por fotograma en un zip, con frames.json que guarda la duración de cada uno. Útil para editores de vídeo y motores de juego.","PNG 시퀀스: 프레임마다 투명 PNG 한 장을 zip으로 묶고, 각 프레임 길이를 담은 frames.json을 함께 넣습니다. 영상 편집이나 게임 엔진에 적합합니다."],"精灵图：把所有帧排成一张透明 PNG，适合做游戏。文件名里带有列数和行数。":["Sprite sheet: all frames laid out in one transparent PNG, handy for games. The file name includes the column and row count.","スプライトシート：全コマを1枚の透過PNGに並べます。ゲーム向け。ファイル名に列数と行数が入ります。","Спрайт-лист: все кадры в одном прозрачном PNG, удобно для игр. В имени файла указаны число столбцов и строк.","Hoja de sprites: todos los fotogramas en un solo PNG transparente, útil para juegos. El nombre del archivo incluye columnas y filas.","스프라이트 시트: 모든 프레임을 투명 PNG 한 장에 배치합니다. 게임용으로 좋으며 파일 이름에 열·행 수가 들어갑니다."],"处理中 {0}/{1}":["Processing {0}/{1}","処理中 {0}/{1}","Обработка {0}/{1}","Procesando {0}/{1}","처리 중 {0}/{1}"],"第 {0} / {1} 帧 · {2}ms":["Frame {0} / {1} · {2} ms","フレーム {0} / {1} · {2} ms","Кадр {0} / {1} · {2} мс","Fotograma {0} / {1} · {2} ms","프레임 {0} / {1} · {2}ms"],"至少要保留一帧":["Keep at least one frame","最低1フレームは残してください","Нужно оставить хотя бы один кадр","Debe quedar al menos un fotograma","최소 한 프레임은 남겨야 합니다"],"{0}  ·  {1}×{2}  ·  {3} 帧  ·  {4} 秒":["{0}  ·  {1}×{2}  ·  {3} frames  ·  {4} s","{0}  ·  {1}×{2}  ·  {3} フレーム  ·  {4} 秒","{0}  ·  {1}×{2}  ·  {3} кадров  ·  {4} с","{0}  ·  {1}×{2}  ·  {3} fotogramas  ·  {4} s","{0}  ·  {1}×{2}  ·  {3}프레임  ·  {4}초"],"读取失败":["Failed to read the file","読み込みに失敗しました","Не удалось прочитать файл","No se pudo leer el archivo","파일을 읽지 못했습니다"],"保留第 {0} 帧":["Keep frame {0}","フレーム {0} を残す","Оставить кадр {0}","Conservar fotograma {0}","프레임 {0} 유지"],"文件超过 80MB，请先压缩后再试":["File is over 80 MB. Please compress it first.","ファイルが80MBを超えています。先に圧縮してください。","Файл больше 80 МБ. Сначала сожмите его.","El archivo supera los 80 MB. Comprímelo primero.","파일이 80MB를 넘습니다. 먼저 압축해 주세요."],"正在读取…":["Reading…","読み込み中…","Чтение…","Leyendo…","읽는 중…"],"正在生成示例…":["Generating sample…","サンプルを生成中…","Создание образца…","Generando ejemplo…","예시 생성 중…"],"示例-白底":["sample-white","サンプル-白背景","sample-white","sample-white","sample-white"],"示例-黑底":["sample-black","サンプル-黒背景","sample-black","sample-black","sample-black"],"无损":["lossless","可逆","без потерь","sin pérdida","무손실"],"已恢复默认参数":["Settings reset","設定をリセットしました","Настройки сброшены","Ajustes restablecidos","설정을 초기화했습니다"],"在预览图上点一下要去掉的背景色":["Click the background colour on the preview","プレビュー上で消したい背景色をクリック","Щёлкните по цвету фона на превью","Haz clic en el color de fondo de la vista previa","미리보기에서 지울 배경색을 클릭하세요"],"在预览图上点一下要处理的色块":["Click the colour block on the preview","プレビュー上で処理したい色の部分をクリック","Щёлкните по нужному участку на превью","Haz clic en el bloque de color de la vista previa","미리보기에서 처리할 색 영역을 클릭하세요"],"没有手动修改可清除":["No manual edits to clear","消去する手動修正はありません","Нет ручных правок для сброса","No hay retoques que borrar","지울 수동 수정이 없습니다"],"已清除手动修改，可以撤销":["Manual edits cleared (you can undo)","手動修正を消去しました（元に戻せます）","Правки сброшены (можно отменить)","Retoques borrados (puedes deshacer)","수동 수정을 지웠습니다 (실행 취소 가능)"],"点到的是已经透明的地方":["That spot is already transparent","そこはすでに透明です","Это место уже прозрачное","Ese punto ya es transparente","이미 투명한 곳입니다"],"已擦除这块颜色{0}，Ctrl+Z 可撤销":["Erased that colour block{0}; Ctrl+Z to undo","その色の部分を消去しました{0}。Ctrl+Z で元に戻せます","Участок стёрт{0}; Ctrl+Z — отмена","Bloque de color borrado{0}; Ctrl+Z para deshacer","해당 색 영역을 지웠습니다{0}. Ctrl+Z로 취소 가능"],"已恢复这块颜色{0}，Ctrl+Z 可撤销":["Restored that colour block{0}; Ctrl+Z to undo","その色の部分を復元しました{0}。Ctrl+Z で元に戻せます","Участок возвращён{0}; Ctrl+Z — отмена","Bloque de color restaurado{0}; Ctrl+Z para deshacer","해당 색 영역을 복원했습니다{0}. Ctrl+Z로 취소 가능"],"（{0} 帧）":[" ({0} frames)","（{0} フレーム）"," ({0} кадров)"," ({0} fotogramas)"," ({0}프레임)"],"这个位置没有选中任何像素":["No pixels were selected there","そこでは何も選択されませんでした","В этой точке ничего не выделено","No se seleccionó ningún píxel ahí","그 위치에서는 선택된 픽셀이 없습니다"],"选了多个文件，只载入第一个。要一次处理多个，请用「批量处理」":["Several files selected; only the first was loaded. Use “Batch” to process many at once.","複数のファイルが選ばれたため、最初の1つだけ読み込みました。まとめて処理するには「一括処理」を使ってください。","Выбрано несколько файлов — загружен только первый. Для нескольких сразу используйте «Пакетная обработка».","Seleccionaste varios archivos; solo se cargó el primero. Para varios a la vez usa «Procesar por lotes».","여러 파일을 선택해 첫 번째만 불러왔습니다. 한 번에 처리하려면 「일괄 처리」를 사용하세요."],"输出 {0}×{1}{2} · {3} 帧 · {4} 秒":["Output {0}×{1}{2} · {3} frames · {4} s","出力 {0}×{1}{2} · {3} フレーム · {4} 秒","Результат {0}×{1}{2} · {3} кадров · {4} с","Salida {0}×{1}{2} · {3} fotogramas · {4} s","출력 {0}×{1}{2} · {3}프레임 · {4}초"],"（裁边前）":[" (before trim)","（トリミング前）"," (до обрезки)"," (antes de recortar)"," (자르기 전)"],"图片编码失败":["Image encoding failed","画像のエンコードに失敗しました","Не удалось закодировать изображение","Falló la codificación de la imagen","이미지 인코딩에 실패했습니다"],"动图":["animation","アニメ","animation","animation","animation"],"编码 GIF {0}/{1}":["Encoding GIF {0}/{1}","GIFをエンコード中 {0}/{1}","Кодирование GIF {0}/{1}","Codificando GIF {0}/{1}","GIF 인코딩 {0}/{1}"],"编码 APNG {0}/{1}":["Encoding APNG {0}/{1}","APNGをエンコード中 {0}/{1}","Кодирование APNG {0}/{1}","Codificando APNG {0}/{1}","APNG 인코딩 {0}/{1}"],"编码 WebP {0}/{1}":["Encoding WebP {0}/{1}","WebPをエンコード中 {0}/{1}","Кодирование WebP {0}/{1}","Codificando WebP {0}/{1}","WebP 인코딩 {0}/{1}"],"打包 {0}/{1}":["Packing {0}/{1}","パッキング中 {0}/{1}","Упаковка {0}/{1}","Empaquetando {0}/{1}","압축 중 {0}/{1}"],"_抠底":["_cutout","_cutout","_cutout","_cutout","_cutout"],"_序列帧":["_frames","_frames","_frames","_frames","_frames"],"_精灵图_":["_sprite_","_sprite_","_sprite_","_sprite_","_sprite_"],"浏览器生成的 PNG 格式不一致，请改用 PNG 序列":["The browser produced inconsistent PNG data. Please use PNG sequence instead.","ブラウザが生成したPNGの形式が一致しません。PNG連番を使ってください。","Браузер создал PNG с несовпадающими параметрами. Используйте PNG-кадры.","El navegador generó PNG inconsistentes. Usa la secuencia PNG.","브라우저가 만든 PNG 형식이 일치하지 않습니다. PNG 시퀀스를 사용하세요."],"这个浏览器不能编码 WebP，请改用 APNG 或 GIF":["This browser cannot encode WebP. Please use APNG or GIF.","このブラウザはWebPをエンコードできません。APNGかGIFを使ってください。","Этот браузер не умеет кодировать WebP. Используйте APNG или GIF.","Este navegador no puede codificar WebP. Usa APNG o GIF.","이 브라우저는 WebP를 인코딩할 수 없습니다. APNG나 GIF를 사용하세요."],"WebP 编码结果无法识别":["The WebP output could not be parsed","WebPの出力を解析できませんでした","Не удалось разобрать результат WebP","No se pudo interpretar la salida WebP","WebP 결과를 해석하지 못했습니다"],"精灵图太大（{0}×{1}），请减少列数、帧数或尺寸":["Sprite sheet too large ({0}×{1}). Reduce columns, frames or size.","スプライトシートが大きすぎます（{0}×{1}）。列数・フレーム数・サイズを減らしてください。","Спрайт-лист слишком велик ({0}×{1}). Уменьшите число столбцов, кадров или размер.","La hoja de sprites es demasiado grande ({0}×{1}). Reduce columnas, fotogramas o tamaño.","스프라이트 시트가 너무 큽니다({0}×{1}). 열 수, 프레임 수 또는 크기를 줄이세요."],"精灵图 {0} 列 × {1} 行，单帧 {2}×{3}":["Sprite sheet: {0} columns × {1} rows, {2}×{3} per frame","スプライトシート：{0} 列 × {1} 行、1コマ {2}×{3}","Спрайт-лист: {0} столбцов × {1} строк, кадр {2}×{3}","Hoja de sprites: {0} columnas × {1} filas, {2}×{3} por fotograma","스프라이트 시트: {0}열 × {1}행, 프레임당 {2}×{3}"],"处理中":["Processing","処理中","Обработка","Procesando","처리 중"],"输出太大了（{0}×{1}，{2} 帧），请缩小尺寸或减少帧数":["Output too large ({0}×{1}, {2} frames). Reduce the size or frame count.","出力が大きすぎます（{0}×{1}、{2} フレーム）。サイズかフレーム数を減らしてください。","Результат слишком велик ({0}×{1}, {2} кадров). Уменьшите размер или число кадров.","La salida es demasiado grande ({0}×{1}, {2} fotogramas). Reduce el tamaño o los fotogramas.","출력이 너무 큽니다({0}×{1}, {2}프레임). 크기나 프레임 수를 줄이세요."],"没能压到 {0} MB，当前 {1}。可以试试抽帧或关掉抖动":["Could not get under {0} MB (now {1}). Try skipping frames or turning off dithering.","{0} MB まで小さくできませんでした（現在 {1}）。コマ間引きやディザのオフを試してください。","Не удалось уложиться в {0} МБ (сейчас {1}). Попробуйте прореживание кадров или отключите дизеринг.","No se pudo bajar de {0} MB (ahora {1}). Prueba a saltar fotogramas o desactivar el tramado.","{0}MB 이하로 줄이지 못했습니다 (현재 {1}). 프레임 건너뛰기나 디더링 끄기를 시도해 보세요."],"为了达到目标大小，尺寸缩到了 {0}%（{1}×{2}）":["To hit the target size, the output was scaled to {0}% ({1}×{2})","目標サイズに収めるため、{0}%（{1}×{2}）に縮小しました","Чтобы уложиться в целевой размер, результат уменьшен до {0}% ({1}×{2})","Para llegar al tamaño objetivo, la salida se redujo al {0}% ({1}×{2})","목표 크기에 맞추려고 {0}%({1}×{2})로 축소했습니다"],"已保存 {0}（{1}）":["Saved {0} ({1})","{0} を保存しました（{1}）","Сохранено: {0} ({1})","Guardado {0} ({1})","{0} 저장됨 ({1})"],"已取消保存":["Save cancelled","保存をキャンセルしました","Сохранение отменено","Guardado cancelado","저장이 취소되었습니다"],"保存失败：{0}":["Save failed: {0}","保存に失敗しました：{0}","Не удалось сохранить: {0}","Error al guardar: {0}","저장 실패: {0}"],"未知原因":["unknown reason","不明な原因","неизвестная причина","motivo desconocido","알 수 없는 이유"],"当前环境不支持保存文件，请换个浏览器打开":["Saving files is not supported here. Please open this page in another browser.","この環境ではファイルを保存できません。別のブラウザで開いてください。","Здесь нельзя сохранять файлы. Откройте страницу в другом браузере.","Este entorno no permite guardar archivos. Abre la página en otro navegador.","이 환경에서는 파일을 저장할 수 없습니다. 다른 브라우저에서 열어 주세요."],"已导出 {0}（{1}）":["Exported {0} ({1})","{0} を書き出しました（{1}）","Экспортировано: {0} ({1})","Exportado {0} ({1})","{0} 내보냄 ({1})"],"正在导出…":["Exporting…","書き出し中…","Экспорт…","Exportando…","내보내는 중…"],"导出 {0}":["Export {0}","{0} を書き出す","Сохранить {0}","Exportar {0}","{0} 내보내기"],"导出失败：{0}":["Export failed: {0}","書き出しに失敗しました：{0}","Ошибка экспорта: {0}","Error al exportar: {0}","내보내기 실패: {0}"],"没有找到可处理的图片（支持 GIF、APNG、WebP、PNG、JPG）":["No usable images found (GIF, APNG, WebP, PNG, JPG are supported)","処理できる画像が見つかりません（GIF・APNG・WebP・PNG・JPG に対応）","Подходящих изображений не найдено (поддерживаются GIF, APNG, WebP, PNG, JPG)","No se encontraron imágenes válidas (compatibles: GIF, APNG, WebP, PNG, JPG)","처리할 수 있는 이미지가 없습니다 (GIF, APNG, WebP, PNG, JPG 지원)"],"批量 {0}/{1}：{2}":["Batch {0}/{1}: {2}","一括 {0}/{1}：{2}","Пакет {0}/{1}: {2}","Lote {0}/{1}: {2}","일괄 {0}/{1}: {2}"],"失败":["failed","失敗","ошибка","error","실패"],"{0}（{1}）":["{0} ({1})","{0}（{1}）","{0} ({1})","{0} ({1})","{0} ({1})"],"；":["; ","；","; ","; ","; "],"批量处理失败：{0}":["Batch failed: {0}","一括処理に失敗しました：{0}","Пакетная обработка не удалась: {0}","Falló el lote: {0}","일괄 처리 실패: {0}"],"批量抠底_{0}个文件":["batch-cutout_{0}-files","一括処理_{0}ファイル","batch-cutout_{0}-files","batch-cutout_{0}-files","batch-cutout_{0}-files"],"{0} 个文件失败：{1}":["{0} file(s) failed: {1}","{0} 個のファイルが失敗：{1}","Ошибок: {0}. {1}","{0} archivo(s) fallaron: {1}","{0}개 파일 실패: {1}"],"这个浏览器不能编码 WebP":["This browser cannot encode WebP","このブラウザはWebPをエンコードできません","Этот браузер не умеет кодировать WebP","Este navegador no puede codificar WebP","이 브라우저는 WebP를 인코딩할 수 없습니다"]};
+const LANGS=[['zh-CN','简体中文'],['en','English'],['ja','日本語'],['ru','Русский'],['es','Español'],['ko','한국어'],['zh-TW','繁體中文'],['pt','Português'],['fr','Français'],['de','Deutsch']];
+const LANG_IDX={en:0,ja:1,ru:2,es:3,ko:4,'zh-TW':5,pt:6,fr:7,de:8};
+const DICT={"GIF 抠底台":["GIF Cutout","GIF背景カッター","GIF Cutout","GIF Cutout","GIF 배경 제거기","GIF 摳底台","Recorte de GIF","Détourage de GIF","GIF-Freisteller"],"拖入动图，去掉白底或黑底，导出透明 GIF、APNG、WebP、序列帧或精灵图。所有处理都在你的浏览器里完成，文件不会上传。":["Drop in an animated GIF, remove the white or black background, and export a transparent GIF, APNG, WebP, PNG sequence or sprite sheet. Everything runs in your browser; nothing is uploaded.","アニメGIFをドロップして白背景・黒背景を消し、透過GIF・APNG・WebP・PNG連番・スプライトシートで書き出せます。処理はすべてブラウザ内で完結し、ファイルはアップロードされません。","Перетащите анимированный GIF, удалите белый или чёрный фон и сохраните прозрачный GIF, APNG, WebP, последовательность PNG или спрайт-лист. Всё работает в браузере, файлы никуда не загружаются.","Arrastra un GIF animado, quita el fondo blanco o negro y exporta un GIF, APNG, WebP, secuencia PNG u hoja de sprites con transparencia. Todo se procesa en tu navegador; no se sube nada.","움직이는 GIF를 끌어다 놓고 흰색·검은색 배경을 지운 뒤 투명 GIF, APNG, WebP, PNG 시퀀스, 스프라이트 시트로 내보내세요. 모든 처리는 브라우저 안에서 이뤄지며 파일은 업로드되지 않습니다.","拖入動圖，去掉白底或黑底，匯出透明 GIF、APNG、WebP、序列幀或精靈圖。所有處理都在你的瀏覽器裡完成，檔案不會上傳。","Arraste um GIF animado, remova o fundo branco ou preto e exporte GIF, APNG, WebP, sequência PNG ou folha de sprites com transparência. Tudo corre no seu navegador; nada é enviado.","Déposez un GIF animé, supprimez le fond blanc ou noir et exportez un GIF, APNG, WebP, une séquence PNG ou une planche de sprites transparents. Tout se passe dans votre navigateur ; rien n’est envoyé.","Ziehen Sie ein animiertes GIF hinein, entfernen Sie den weißen oder schwarzen Hintergrund und exportieren Sie transparente GIF, APNG, WebP, PNG-Sequenz oder Sprite-Sheet. Alles läuft im Browser, nichts wird hochgeladen."],"1. 拖入或选择一个动图":["1. Drop or choose an animation","1. アニメをドロップ／選択","1. Перетащите или выберите анимацию","1. Arrastra o elige una animación","1. 애니메이션을 끌어다 놓거나 선택","1. 拖入或選擇一個動圖","1. Arraste ou escolha uma animação","1. Déposez ou choisissez une animation","1. Animation hineinziehen oder auswählen"],"2. 看预览，边缘不干净就调「容差」":["2. Check the preview; raise Tolerance if edges look dirty","2. プレビューを確認し、縁が汚ければ「許容値」を調整","2. Смотрите превью; если края грязные — увеличьте «Допуск»","2. Mira la vista previa; si los bordes se ven sucios, sube la «Tolerancia»","2. 미리보기를 보고 가장자리가 지저분하면 「허용치」 조정","2. 看預覽，邊緣不乾淨就調「容差」","2. Veja a pré-visualização; se as bordas estiverem sujas, aumente a «Tolerância»","2. Vérifiez l’aperçu ; si les bords sont sales, augmentez la « Tolérance »","2. Vorschau prüfen; bei unsauberen Kanten die „Toleranz“ erhöhen"],"3. 点底部的大按钮导出":["3. Hit the big button at the bottom to export","3. 下の大きなボタンで書き出し","3. Нажмите большую кнопку внизу, чтобы сохранить","3. Pulsa el botón grande de abajo para exportar","3. 아래의 큰 버튼으로 내보내기","3. 點底部的大按鈕匯出","3. Clique no botão grande em baixo para exportar","3. Cliquez sur le grand bouton en bas pour exporter","3. Mit dem großen Button unten exportieren"],"选择文件":["Choose file","ファイルを選択","Выбрать файл","Elegir archivo","파일 선택","選擇檔案","Escolher ficheiro","Choisir un fichier","Datei wählen"],"批量处理":["Batch","一括処理","Пакетная обработка","Procesar por lotes","일괄 처리","批量處理","Em lote","Par lot","Stapel"],"批量选文件夹":["Batch from folder","フォルダで一括","Пакет из папки","Lote desde carpeta","폴더로 일괄","批量選資料夾","Lote a partir de pasta","Lot depuis un dossier","Stapel aus Ordner"],"支持 GIF（推荐）、APNG、WebP、PNG、JPG。可拖入页面，也可 Ctrl+V 粘贴。":["Supports GIF (recommended), APNG, WebP, PNG, JPG. Drag onto the page or paste with Ctrl+V.","GIF（推奨）・APNG・WebP・PNG・JPGに対応。ページへのドラッグや Ctrl+V の貼り付けもOK。","Поддерживаются GIF (лучше всего), APNG, WebP, PNG, JPG. Перетащите на страницу или вставьте через Ctrl+V.","Admite GIF (recomendado), APNG, WebP, PNG y JPG. Arrástralo a la página o pégalo con Ctrl+V.","GIF(권장), APNG, WebP, PNG, JPG 지원. 페이지에 끌어다 놓거나 Ctrl+V로 붙여넣기.","支援 GIF（推薦）、APNG、WebP、PNG、JPG。可拖入頁面，也可 Ctrl+V 貼上。","Suporta GIF (recomendado), APNG, WebP, PNG, JPG. Arraste para a página ou cole com Ctrl+V.","Prend en charge GIF (recommandé), APNG, WebP, PNG, JPG. Glissez sur la page ou collez avec Ctrl+V.","Unterstützt GIF (empfohlen), APNG, WebP, PNG, JPG. Auf die Seite ziehen oder mit Strg+V einfügen."],"没有素材？":["No file handy?","素材がない？","Нет файла?","¿No tienes un archivo?","파일이 없나요?","沒有素材？","Sem ficheiro à mão?","Pas de fichier sous la main ?","Keine Datei zur Hand?"],"白底示例":["White sample","白背景サンプル","Образец: белый фон","Ejemplo fondo blanco","흰 배경 예시","白底範例","Exemplo fundo branco","Exemple fond blanc","Beispiel Weiß"],"黑底示例":["Black sample","黒背景サンプル","Образец: чёрный фон","Ejemplo fondo negro","검은 배경 예시","黑底範例","Exemplo fundo preto","Exemple fond noir","Beispiel Schwarz"],"暂停":["Pause","一時停止","Пауза","Pausa","일시정지","暫停","Pausar","Pause","Pause"],"播放":["Play","再生","Играть","Reproducir","재생","播放","Reproduzir","Lecture","Abspielen"],"撤销 (Ctrl+Z)":["Undo (Ctrl+Z)","元に戻す (Ctrl+Z)","Отменить (Ctrl+Z)","Deshacer (Ctrl+Z)","실행 취소 (Ctrl+Z)","撤銷 (Ctrl+Z)","Anular (Ctrl+Z)","Annuler (Ctrl+Z)","Rückgängig (Strg+Z)"],"撤销":["Undo","元に戻す","Отмена","Deshacer","실행 취소","撤銷","Anular","Annuler","Rückgängig"],"重做 (Ctrl+Y)":["Redo (Ctrl+Y)","やり直し (Ctrl+Y)","Повторить (Ctrl+Y)","Rehacer (Ctrl+Y)","다시 실행 (Ctrl+Y)","重做 (Ctrl+Y)","Refazer (Ctrl+Y)","Rétablir (Ctrl+Y)","Wiederholen (Strg+Y)"],"重做":["Redo","やり直し","Повтор","Rehacer","다시 실행","重做","Refazer","Rétablir","Wiederholen"],"帧位置":["Frame position","フレーム位置","Позиция кадра","Posición del fotograma","프레임 위치","幀位置","Posição do fotograma","Position de l’image","Bildposition"],"查看方式":["View mode","表示モード","Режим просмотра","Modo de vista","보기 방식","查看方式","Modo de visualização","Mode d’affichage","Ansicht"],"查看":["View","表示","Вид","Vista","보기","查看","Ver","Vue","Ansicht"],"抠图结果":["Result","結果","Результат","Resultado","결과","摳圖結果","Resultado","Résultat","Ergebnis"],"原图":["Original","元画像","Оригинал","Original","원본","原圖","Original","Original","Original"],"对比":["Compare","比較","Сравнить","Comparar","비교","對比","Comparar","Comparer","Vergleich"],"透明度":["Alpha","アルファ","Альфа","Alfa","알파","透明度","Alfa","Alpha","Alpha"],"对比位置":["Compare position","比較位置","Позиция сравнения","Posición de comparación","비교 위치","對比位置","Posição da comparação","Position de la comparaison","Vergleichsposition"],"预览背景":["Preview BG","プレビュー背景","Фон превью","Fondo de vista","미리보기 배경","預覽背景","Fundo da pré-visualização","Fond de l’aperçu","Vorschau-Hintergrund"],"棋盘":["Checker","市松模様","Шахматка","Cuadros","체크무늬","棋盤","Xadrez","Damier","Schachbrett"],"白":["White","白","Белый","Blanco","흰색","白","Branco","Blanc","Weiß"],"黑":["Black","黒","Чёрный","Negro","검정","黑","Preto","Noir","Schwarz"],"绿":["Green","緑","Зелёный","Verde","초록","綠","Verde","Vert","Grün"],"自定义预览背景":["Custom preview background","プレビュー背景色を指定","Свой фон превью","Fondo de vista personalizado","미리보기 배경색 지정","自定義預覽背景","Fundo personalizado da pré-visualização","Fond d’aperçu personnalisé","Eigener Vorschau-Hintergrund"],"缩放":["Zoom","ズーム","Масштаб","Zoom","확대","縮放","Zoom","Zoom","Zoom"],"适应":["Fit","合わせる","Вписать","Ajustar","맞춤","適應","Ajustar","Ajuster","Einpassen"],"帧列表":["Frame list","フレーム一覧","Список кадров","Lista de fotogramas","프레임 목록","幀列表","Lista de fotogramas","Liste des images","Bilderliste"],"参数":["Settings","設定","Настройки","Ajustes","설정","參數","Definições","Réglages","Einstellungen"],"抠图":["Cutout","切り抜き","Вырезание","Recorte","배경 제거","摳圖","Recorte","Détourage","Freistellen"],"要去掉的背景色":["Background colour to remove","消す背景色","Удаляемый цвет фона","Color de fondo a quitar","지울 배경색","要去掉的背景色","Cor de fundo a remover","Couleur de fond à retirer","Zu entfernende Hintergrundfarbe"],"自动识别":["Auto-detect","自動検出","Авто","Detectar","자동 감지","自動識別","Deteção automática","Détection auto","Automatisch erkennen"],"吸管":["Eyedropper","スポイト","Пипетка","Cuentagotas","스포이트","吸管","Conta-gotas","Pipette","Pipette"],"抠除范围":["Removal scope","消す範囲","Область удаления","Alcance","제거 범위","摳除範圍","Alcance da remoção","Portée du retrait","Umfang der Entfernung"],"只去掉与边缘相连的背景（保护主体内部）":["Only background connected to the edge (protects the subject)","縁につながる背景だけ消す（被写体の内側を保護）","Только фон, связанный с краем (защищает объект)","Solo el fondo conectado al borde (protege el sujeto)","가장자리와 이어진 배경만 (피사체 내부 보호)","只去掉與邊緣相連的背景（保護主體內部）","Só o fundo ligado à borda (protege o sujeito)","Seulement le fond relié au bord (protège le sujet)","Nur mit dem Rand verbundener Hintergrund (schützt das Motiv)"],"去掉画面中所有相近颜色":["All similar colours in the image","画面内の近い色をすべて消す","Все похожие цвета на кадре","Todos los colores similares","화면의 비슷한 색 모두","去掉畫面中所有相近顏色","Todas as cores semelhantes na imagem","Toutes les couleurs proches de l’image","Alle ähnlichen Farben im Bild"],"容差":["Tolerance","許容値","Допуск","Tolerancia","허용치","容差","Tolerância","Tolérance","Toleranz"],"穿透保护（挡住细线）":["Leak guard (blocks thin lines)","リーク防止（細い線を遮る）","Защита от протечек (тонкие линии)","Anti-fugas (bloquea líneas finas)","누출 방지 (가는 선 차단)","穿透保護（擋住細線）","Proteção contra fugas (bloqueia linhas finas)","Anti-fuite (bloque les lignes fines)","Leckschutz (blockiert feine Linien)"],"原图里的白色（或黑色）细线连着外面时，背景会顺着它钻进主体，抠出一条条缝。数值越大，能挡住的线越粗。":["If thin white (or black) lines in the source connect to the outside, the removal can leak along them and cut slits into the subject. Higher values block thicker lines.","元画像の白（または黒）の細い線が外側とつながっていると、背景がその線に沿って被写体に入り込み、筋状に抜けてしまいます。値が大きいほど太い線まで遮れます。","Если тонкие белые (или чёрные) линии в исходнике соединены с внешним фоном, удаление «протекает» по ним и прорезает щели в объекте. Чем больше значение, тем более толстые линии блокируются.","Si hay líneas finas blancas (o negras) en el original conectadas con el exterior, el borrado se «filtra» por ellas y abre rendijas en el sujeto. Cuanto mayor el valor, más gruesas las líneas que bloquea.","원본의 가는 흰색(또는 검은색) 선이 바깥과 이어져 있으면 배경이 선을 따라 피사체 안으로 번져 틈이 생깁니다. 값이 클수록 더 굵은 선까지 막습니다.","原圖裡的白色（或黑色）細線連著外面時，背景會順著它鑽進主體，摳出一條條縫。數值越大，能擋住的線越粗。","Se linhas finas brancas (ou pretas) da origem ligarem ao exterior, a remoção pode escorrer por elas e abrir fendas no sujeito. Valores maiores bloqueiam linhas mais grossas.","Si de fines lignes blanches (ou noires) de la source touchent l’extérieur, le retrait peut s’y infiltrer et ouvrir des fentes dans le sujet. Plus la valeur est haute, plus les lignes bloquées sont épaisses.","Wenn feine weiße (oder schwarze) Linien im Original mit dem Außenbereich verbunden sind, kann die Entfernung hineinlaufen und Schlitze ins Motiv schneiden. Höhere Werte blockieren dickere Linien."],"去除杂点（面积）":["Remove specks (area)","ごみ除去（面積）","Удаление пятен (площадь)","Quitar motas (área)","잡티 제거 (면적)","去除雜點（面積）","Remover pontos soltos (área)","Supprimer les points isolés (surface)","Pixelreste entfernen (Fläche)"],"自动补缝（填平主体内的细缝）":["Auto-fill gaps (close slits in subject)","自動すき間埋め（被写体内の細い隙間）","Автозаливка щелей (внутри объекта)","Rellenar huecos (rendijas en el sujeto)","틈 자동 채우기 (피사체 내부)","自動補縫（填平主體內的細縫）","Preencher fendas automaticamente (fecha frestas no sujeito)","Combler auto les fentes (referme les fissures du sujet)","Spalten automatisch füllen (schließt Schlitze im Motiv)"],"原图本身就带透明缝时，穿透保护救不回来，用这个：数值越大，能补的缝越宽。太大会把手指之间等细小空隙也填上。":["Use this when the source already has transparent slits that Leak guard cannot recover. Higher values fill wider gaps, but too high also fills small real gaps such as between fingers.","元画像にもともと透明の筋がある場合、リーク防止では直せません。その時はこちら。値が大きいほど広い隙間を埋めますが、大きすぎると指の間のような本来の隙間も埋まります。","Используйте, если в исходнике уже есть прозрачные щели, которые защита не исправит. Чем больше значение, тем шире заливаемые зазоры; слишком большое заполнит и настоящие мелкие промежутки (например, между пальцами).","Úsalo cuando el original ya tenga rendijas transparentes que Anti-fugas no puede recuperar. Cuanto mayor el valor, más ancho el hueco que rellena; si es muy alto también tapa huecos reales pequeños (p. ej. entre dedos).","원본에 이미 투명한 틈이 있어 누출 방지로 복구되지 않을 때 사용하세요. 값이 클수록 넓은 틈을 메우지만, 너무 크면 손가락 사이 같은 실제 틈도 메워집니다.","原圖本身就帶透明縫時，穿透保護救不回來，用這個：數值越大，能補的縫越寬。太大會把手指之間等細小空隙也填上。","Use quando a origem já tem frestas transparentes que a proteção contra fugas não resolve. Valores maiores preenchem frestas mais largas, mas valores demasiado altos também fecham espaços reais pequenos, como entre os dedos.","À utiliser quand la source contient déjà des fentes transparentes que l’anti-fuite ne peut pas récupérer. Plus la valeur est haute, plus les fentes comblées sont larges, mais trop haut remplit aussi de vrais petits espaces, comme entre les doigts.","Verwenden, wenn das Original bereits transparente Schlitze hat, die der Leckschutz nicht rettet. Höhere Werte füllen breitere Spalten, zu hohe füllen aber auch kleine echte Zwischenräume, etwa zwischen Fingern."],"边缘平滑（像素）":["Edge smoothing (px)","エッジのぼかし（px）","Сглаживание края (px)","Suavizado de borde (px)","가장자리 부드럽게 (px)","邊緣平滑（像素）","Suavização das bordas (px)","Lissage des bords (px)","Kantenglättung (px)"],"去白边 / 黑边":["Remove halo","フチ除去（白／黒）","Убрать ореол","Quitar halo","헤일로 제거","去白邊 / 黑邊","Remover halo","Retirer le halo","Saum entfernen"],"边缘收缩（像素）":["Edge shrink (px)","エッジ縮小（px）","Сжатие края (px)","Contraer borde (px)","가장자리 축소 (px)","邊緣收縮（像素）","Encolher bordas (px)","Contraction des bords (px)","Kanten verkleinern (px)"],"恢复默认参数":["Reset settings","設定をリセット","Сбросить настройки","Restablecer ajustes","설정 초기화","恢復預設參數","Repor definições","Réinitialiser","Zurücksetzen"],"特效与调色":["Effects & colour","エフェクトと色調","Эффекты и цвет","Efectos y color","효과 및 색상","特效與調色","Efeitos e cor","Effets et couleur","Effekte & Farbe"],"描边":["Outline","輪郭線","Обводка","Contorno","외곽선","描邊","Contorno","Contour","Kontur"],"加描边":["Add outline","輪郭線を付ける","Добавить обводку","Añadir contorno","외곽선 추가","加描邊","Adicionar contorno","Ajouter un contour","Kontur hinzufügen"],"描边颜色":["Outline colour","輪郭線の色","Цвет обводки","Color del contorno","외곽선 색","描邊顏色","Cor do contorno","Couleur du contour","Konturfarbe"],"宽度（像素）":["Width (px)","幅（px）","Ширина (px)","Ancho (px)","너비 (px)","寬度（像素）","Largura (px)","Épaisseur (px)","Breite (px)"],"投影":["Shadow","影","Тень","Sombra","그림자","投影","Sombra","Ombre","Schatten"],"无投影":["No shadow","影なし","Без тени","Sin sombra","그림자 없음","無投影","Sem sombra","Sans ombre","Kein Schatten"],"柔和投影":["Soft shadow","ソフトな影","Мягкая тень","Sombra suave","부드러운 그림자","柔和投影","Sombra suave","Ombre douce","Weicher Schatten"],"硬投影":["Hard shadow","ハードな影","Жёсткая тень","Sombra dura","선명한 그림자","硬投影","Sombra dura","Ombre dure","Harter Schatten"],"投影颜色":["Shadow colour","影の色","Цвет тени","Color de la sombra","그림자 색","投影顏色","Cor da sombra","Couleur de l’ombre","Schattenfarbe"],"投影距离（像素）":["Shadow offset (px)","影の距離（px）","Смещение тени (px)","Desplazamiento (px)","그림자 거리 (px)","投影距離（像素）","Distância da sombra (px)","Décalage de l’ombre (px)","Schattenabstand (px)"],"发光边":["Glow","グロー","Свечение","Resplandor","글로우","發光邊","Brilho exterior","Lueur","Leuchten"],"加发光":["Add glow","グローを付ける","Добавить свечение","Añadir resplandor","글로우 추가","加發光","Adicionar brilho","Ajouter une lueur","Leuchten hinzufügen"],"发光颜色":["Glow colour","グローの色","Цвет свечения","Color del resplandor","글로우 색","發光顏色","Cor do brilho","Couleur de la lueur","Leuchtfarbe"],"发光范围（像素）":["Glow radius (px)","グローの範囲（px）","Радиус свечения (px)","Radio del resplandor (px)","글로우 범위 (px)","發光範圍（像素）","Raio do brilho (px)","Rayon de la lueur (px)","Leuchtradius (px)"],"调色":["Colour","色調","Цвет","Color","색상","調色","Cor","Couleur","Farbe"],"亮度":["Brightness","明るさ","Яркость","Brillo","밝기","亮度","Brilho","Luminosité","Helligkeit"],"饱和度":["Saturation","彩度","Насыщенность","Saturación","채도","飽和度","Saturação","Saturation","Sättigung"],"整体透明度":["Overall opacity","全体の不透明度","Общая непрозрачность","Opacidad total","전체 불투명도","整體透明度","Opacidade geral","Opacité globale","Gesamtdeckkraft"],"反相":["Invert","色反転","Инверсия","Invertir","반전","反相","Inverter","Inverser","Invertieren"],"彩虹循环":["Rainbow cycle","レインボー循環","Радужный цикл","Ciclo arcoíris","무지개 순환","彩虹循環","Ciclo arco-íris","Cycle arc-en-ciel","Regenbogen-Zyklus"],"幽灵":["Ghost","ゴースト","Призрак","Fantasma","유령","幽靈","Fantasma","Fantôme","Geist"],"手动修补":["Manual touch-up","手動修正","Ручная правка","Retoque manual","수동 보정","手動修補","Retoque manual","Retouche manuelle","Manuelle Korrektur"],"笔刷":["Brush","ブラシ","Кисть","Pincel","브러시","筆刷","Pincel","Pinceau","Pinsel"],"不使用":["Off","使わない","Выкл.","Desactivado","사용 안 함","不使用","Desligado","Désactivé","Aus"],"擦除":["Erase","消去","Стереть","Borrar","지우기","擦除","Apagar","Effacer","Radieren"],"恢复":["Restore","復元","Вернуть","Restaurar","복원","恢復","Restaurar","Restaurer","Wiederherstellen"],"点一下，擦掉一整块相近的颜色":["Click to erase a whole block of similar colour","クリックで近い色のかたまりを消去","Щёлк — стереть весь участок похожего цвета","Clic para borrar todo un bloque de color similar","클릭하면 비슷한 색 덩어리를 지웁니다","點一下，擦掉一整塊相近的顏色","Clique para apagar um bloco inteiro de cor semelhante","Cliquez pour effacer tout un bloc de couleur proche","Klicken, um einen ganzen Bereich ähnlicher Farbe zu löschen"],"魔棒擦除":["Wand erase","自動選択で消去","Палочка: стереть","Varita: borrar","마술봉 지우기","魔棒擦除","Varinha: apagar","Baguette : effacer","Zauberstab: radieren"],"点一下，恢复一整块相近的颜色":["Click to restore a whole block of similar colour","クリックで近い色のかたまりを復元","Щёлк — вернуть весь участок похожего цвета","Clic para restaurar todo un bloque de color similar","클릭하면 비슷한 색 덩어리를 복원합니다","點一下，恢復一整塊相近的顏色","Clique para restaurar um bloco inteiro de cor semelhante","Cliquez pour restaurer tout un bloc de couleur proche","Klicken, um einen ganzen Bereich ähnlicher Farbe wiederherzustellen"],"魔棒恢复":["Wand restore","自動選択で復元","Палочка: вернуть","Varita: restaurar","마술봉 복원","魔棒恢復","Varinha: restaurar","Baguette : restaurer","Zauberstab: wiederherstellen"],"魔棒：在预览图上点一下，把点中的那一整块相近颜色擦掉（或恢复）。":["Magic wand: click the preview to erase (or restore) the whole block of similar colour you clicked.","自動選択：プレビューをクリックすると、クリックした近い色のかたまりをまとめて消去（または復元）します。","Волшебная палочка: щёлкните по превью, чтобы стереть (или вернуть) весь участок похожего цвета.","Varita mágica: haz clic en la vista previa para borrar (o restaurar) todo el bloque de color similar.","마술봉: 미리보기를 클릭하면 클릭한 비슷한 색 덩어리를 한 번에 지우거나 복원합니다.","魔棒：在預覽圖上點一下，把點中的那一整塊相近顏色擦掉（或恢復）。","Varinha mágica: clique na pré-visualização para apagar (ou restaurar) o bloco de cor semelhante que clicou.","Baguette magique : cliquez sur l’aperçu pour effacer (ou restaurer) tout le bloc de couleur proche que vous avez touché.","Zauberstab: In der Vorschau klicken, um den ganzen Bereich ähnlicher Farbe zu löschen (oder wiederherzustellen)."],"魔棒容差":["Wand tolerance","自動選択の許容値","Допуск палочки","Tolerancia de varita","마술봉 허용치","魔棒容差","Tolerância da varinha","Tolérance de la baguette","Zauberstab-Toleranz"],"选区外扩（像素，盖住抗锯齿边）":["Grow selection (px, covers anti-aliased edges)","選択範囲の拡張（px、アンチエイリアスの縁用）","Расширение выделения (px, для сглаженных краёв)","Ampliar selección (px, cubre bordes suavizados)","선택 영역 확장 (px, 안티앨리어싱 가장자리용)","選區外擴（像素，蓋住抗鋸齒邊）","Expandir seleção (px, cobre bordas suavizadas)","Étendre la sélection (px, couvre les bords lissés)","Auswahl erweitern (px, deckt geglättete Kanten ab)"],"只选相连的区域（取消则选全图同色）":["Contiguous only (uncheck to pick that colour everywhere)","つながった領域のみ（解除すると全体の同色）","Только смежная область (снимите — весь цвет на кадре)","Solo zona contigua (desmarca para todo ese color)","이어진 영역만 (해제하면 전체 같은 색)","只選相連的區域（取消則選全圖同色）","Só áreas ligadas (desmarque para escolher essa cor em toda a imagem)","Zones contiguës seulement (décochez pour cette couleur partout)","Nur zusammenhängend (abwählen: diese Farbe überall)"],"笔刷大小（像素）":["Brush size (px)","ブラシサイズ（px）","Размер кисти (px)","Tamaño del pincel (px)","브러시 크기 (px)","筆刷大小（像素）","Tamanho do pincel (px)","Taille du pinceau (px)","Pinselgröße (px)"],"作用于所有帧":["Apply to all frames","全フレームに適用","Ко всем кадрам","Aplicar a todos los fotogramas","모든 프레임에 적용","作用于所有幀","Aplicar a todos os fotogramas","Appliquer à toutes les images","Auf alle Bilder anwenden"],"清除手动修改":["Clear manual edits","手動修正を消去","Сбросить правки","Borrar retoques","수동 수정 지우기","清除手動修改","Limpar edições manuais","Effacer les retouches manuelles","Manuelle Änderungen löschen"],"时间轴":["Timeline","タイムライン","Таймлайн","Línea de tiempo","타임라인","時間軸","Linha do tempo","Chronologie","Zeitleiste"],"播放方式":["Playback","再生方式","Воспроизведение","Reproducción","재생 방식","播放方式","Reprodução","Lecture","Wiedergabe"],"正放":["Forward","順再生","Вперёд","Normal","정방향","正放","Normal","Normal","Vorwärts"],"倒放":["Reverse","逆再生","Назад","Inversa","역방향","倒放","Inverso","Inversé","Rückwärts"],"来回播放":["Ping-pong","往復再生","Туда-обратно","Ida y vuelta","왕복","來回播放","Vaivém","Aller-retour","Hin und zurück"],"抽帧":["Skip frames","コマ間引き","Прореживание","Saltar fotogramas","프레임 건너뛰기","抽幀","Saltar fotogramas","Sauter des images","Bilder auslassen"],"保留全部帧":["Keep all frames","全フレーム保持","Все кадры","Todos los fotogramas","모든 프레임 유지","保留全部幀","Manter todos os fotogramas","Garder toutes les images","Alle Bilder behalten"],"每 2 帧留 1 帧":["Keep 1 of every 2","2コマに1コマ残す","Каждый 2-й кадр","1 de cada 2","2프레임마다 1개","每 2 幀留 1 幀","Manter 1 em cada 2","Garder 1 sur 2","Jedes 2. Bild behalten"],"每 3 帧留 1 帧":["Keep 1 of every 3","3コマに1コマ残す","Каждый 3-й кадр","1 de cada 3","3프레임마다 1개","每 3 幀留 1 幀","Manter 1 em cada 3","Garder 1 sur 3","Jedes 3. Bild behalten"],"每 4 帧留 1 帧":["Keep 1 of every 4","4コマに1コマ残す","Каждый 4-й кадр","1 de cada 4","4프레임마다 1개","每 4 幀留 1 幀","Manter 1 em cada 4","Garder 1 sur 4","Jedes 4. Bild behalten"],"速度":["Speed","速度","Скорость","Velocidad","속도","速度","Velocidade","Vitesse","Geschwindigkeit"],"取消勾选缩略图下方的方框，可以删除那一帧。抽帧会自动把留下的帧拉长，整体速度不变。":["Untick the box under a thumbnail to delete that frame. Skipping frames lengthens the remaining ones so overall speed stays the same.","サムネイル下のチェックを外すとそのフレームを削除できます。間引いた場合は残りのフレームが長くなり、全体の速さは変わりません。","Снимите галочку под миниатюрой, чтобы удалить кадр. При прореживании оставшиеся кадры удлиняются, общая скорость не меняется.","Desmarca la casilla bajo una miniatura para eliminar ese fotograma. Al saltar fotogramas, los restantes se alargan y la velocidad total no cambia.","썸네일 아래 체크를 해제하면 해당 프레임이 삭제됩니다. 프레임을 건너뛰면 남은 프레임이 길어져 전체 속도는 그대로입니다.","取消勾選縮略圖下方的方框，可以刪除那一幀。抽幀會自動把留下的幀拉長，整體速度不變。","Desmarque a caixa por baixo da miniatura para apagar esse fotograma. Ao saltar fotogramas, os restantes ficam mais longos e a velocidade total mantém-se.","Décochez la case sous une miniature pour supprimer l’image. Sauter des images allonge les restantes et la vitesse globale reste la même.","Das Kästchen unter einer Vorschau abwählen, um das Bild zu löschen. Beim Auslassen werden die übrigen Bilder verlängert, die Gesamtgeschwindigkeit bleibt gleich."],"输出背景":["Output background","出力の背景","Фон результата","Fondo de salida","출력 배경","輸出背景","Fundo de saída","Fond de sortie","Ausgabe-Hintergrund"],"透明":["Transparent","透明","Прозрачный","Transparente","투명","透明","Transparente","Transparent","Transparent"],"纯色":["Solid colour","単色","Сплошной цвет","Color sólido","단색","純色","Cor sólida","Couleur unie","Einfarbig"],"渐变":["Gradient","グラデーション","Градиент","Degradado","그라데이션","漸變","Gradiente","Dégradé","Verlauf"],"颜色一":["Colour 1","色1","Цвет 1","Color 1","색 1","顏色一","Cor 1","Couleur 1","Farbe 1"],"颜色二":["Colour 2","色2","Цвет 2","Color 2","색 2","顏色二","Cor 2","Couleur 2","Farbe 2"],"渐变方向":["Gradient direction","グラデーションの向き","Направление градиента","Dirección del degradado","그라데이션 방향","漸變方向","Direção do gradiente","Direction du dégradé","Verlaufsrichtung"],"上到下":["Top to bottom","上から下","Сверху вниз","De arriba abajo","위에서 아래","上到下","De cima para baixo","De haut en bas","Von oben nach unten"],"左到右":["Left to right","左から右","Слева направо","De izquierda a derecha","왼쪽에서 오른쪽","左到右","Da esquerda para a direita","De gauche à droite","Von links nach rechts"],"把抠好的动图放到新背景上再导出。":["Place the cut-out animation on a new background before exporting.","切り抜いたアニメを新しい背景に載せて書き出します。","Поместите вырезанную анимацию на новый фон перед сохранением.","Coloca la animación recortada sobre un fondo nuevo antes de exportar.","배경을 제거한 애니메이션을 새 배경 위에 올려 내보냅니다.","把摳好的動圖放到新背景上再匯出。","Coloque a animação recortada sobre um novo fundo antes de exportar.","Placez l’animation détourée sur un nouveau fond avant d’exporter.","Setzen Sie die freigestellte Animation vor dem Export auf einen neuen Hintergrund."],"导出选项":["Export options","書き出し設定","Параметры экспорта","Opciones de exportación","내보내기 옵션","匯出選項","Opções de exportação","Options d’export","Export-Optionen"],"尺寸":["Size","サイズ","Размер","Tamaño","크기","尺寸","Tamanho","Taille","Größe"],"导出尺寸":["Export size","書き出しサイズ","Размер экспорта","Tamaño de exportación","내보내기 크기","匯出尺寸","Tamanho de exportação","Taille d’export","Exportgröße"],"像素风放大":["Pixel-art scaling","ドット絵向け拡大","Пиксельное масштабирование","Escalado pixel art","픽셀아트 확대","像素風放大","Ampliação pixel art","Agrandissement pixel art","Pixel-Art-Skalierung"],"裁掉透明边":["Trim transparent edges","透明な余白を切り詰める","Обрезать прозрачные края","Recortar bordes transparentes","투명 여백 자르기","裁掉透明邊","Cortar margens transparentes","Rogner les bords transparents","Transparente Ränder beschneiden"],"留白":["Padding","余白","Отступ","Margen","여백","留白","Margem","Marge","Abstand"],"留白像素":["Padding pixels","余白ピクセル","Отступ в пикселях","Píxeles de margen","여백 픽셀","留白像素","Pixels de margem","Pixels de marge","Abstand in Pixeln"],"GIF 透明阈值":["GIF transparency threshold","GIF透過のしきい値","Порог прозрачности GIF","Umbral de transparencia GIF","GIF 투명도 임계값","GIF 透明閾值","Limiar de transparência do GIF","Seuil de transparence GIF","GIF-Transparenzschwelle"],"目标大小":["Target size","目標サイズ","Целевой размер","Tamaño objetivo","목표 크기","目標大小","Tamanho alvo","Taille cible","Zielgröße"],"目标大小 MB":["Target size in MB","目標サイズ（MB）","Целевой размер, МБ","Tamaño objetivo en MB","목표 크기(MB)","目標大小 MB","Tamanho alvo em MB","Taille cible en Mo","Zielgröße in MB"],"MB（0 为不限制，自动缩小尺寸）":["MB (0 = no limit; scales down automatically)","MB（0で無制限。自動で縮小）","МБ (0 — без ограничения; уменьшает размер автоматически)","MB (0 = sin límite; reduce el tamaño solo)","MB (0은 제한 없음, 자동으로 크기 축소)","MB（0 為不限制，自動縮小尺寸）","MB (0 = sem limite; reduz o tamanho automaticamente)","Mo (0 = sans limite ; réduit la taille automatiquement)","MB (0 = unbegrenzt; verkleinert automatisch)"],"GIF 抖动（渐变更平滑）":["GIF dithering (smoother gradients)","GIFディザ（グラデーションが滑らか）","Дизеринг GIF (плавнее градиенты)","Tramado GIF (degradados más suaves)","GIF 디더링 (그라데이션이 부드러움)","GIF 抖動（漸變更平滑）","Dithering do GIF (gradientes mais suaves)","Tramage GIF (dégradés plus doux)","GIF-Dithering (weichere Verläufe)"],"WebP 画质（100 为无损）":["WebP quality (100 = lossless)","WebP画質（100で可逆）","Качество WebP (100 — без потерь)","Calidad WebP (100 = sin pérdida)","WebP 품질 (100은 무손실)","WebP 畫質（100 為無損）","Qualidade WebP (100 = sem perdas)","Qualité WebP (100 = sans perte)","WebP-Qualität (100 = verlustfrei)"],"精灵图列数":["Sprite columns","スプライトの列数","Столбцов в спрайт-листе","Columnas de sprites","스프라이트 열 수","精靈圖列數","Colunas da folha de sprites","Colonnes de la planche de sprites","Sprite-Spalten"],"自动":["Auto","自動","Авто","Auto","자동","自動","Automático","Auto","Automatisch"],"导出格式":["Export format","書き出し形式","Формат экспорта","Formato de exportación","내보내기 형식","匯出格式","Formato de exportação","Format d’export","Exportformat"],"PNG 序列":["PNG sequence","PNG連番","PNG-кадры","Secuencia PNG","PNG 시퀀스","PNG 序列","Sequência PNG","Séquence PNG","PNG-Sequenz"],"精灵图":["Sprite sheet","スプライトシート","Спрайт-лист","Hoja de sprites","스프라이트 시트","精靈圖","Folha de sprites","Planche de sprites","Sprite-Sheet"],"免费开源 · MIT 许可证 · 所有处理都在你的浏览器里完成":["Free & open source · MIT licence · everything is processed in your browser","無料・オープンソース · MITライセンス · 処理はすべてブラウザ内","Бесплатно и с открытым кодом · лицензия MIT · всё обрабатывается в вашем браузере","Gratis y de código abierto · licencia MIT · todo se procesa en tu navegador","무료 오픈소스 · MIT 라이선스 · 모든 처리는 브라우저에서 이뤄집니다","免費開源 · MIT 許可證 · 所有處理都在你的瀏覽器裡完成","Gratuito e de código aberto · licença MIT · tudo é processado no seu navegador","Gratuit et open source · licence MIT · tout est traité dans votre navigateur","Kostenlos & Open Source · MIT-Lizenz · alles wird in Ihrem Browser verarbeitet"],"这不是有效的 GIF 文件":["This is not a valid GIF file","有効なGIFファイルではありません","Это не корректный файл GIF","Este no es un archivo GIF válido","올바른 GIF 파일이 아닙니다","這不是有效的 GIF 檔案","Este não é um ficheiro GIF válido","Ce n’est pas un fichier GIF valide","Das ist keine gültige GIF-Datei"],"GIF 尺寸无效":["Invalid GIF dimensions","GIFのサイズが不正です","Некорректный размер GIF","Dimensiones de GIF no válidas","GIF 크기가 올바르지 않습니다","GIF 尺寸無效","Dimensões do GIF inválidas","Dimensions du GIF invalides","Ungültige GIF-Abmessungen"],"这个 GIF 太大了（解码后超过 500MB），请先缩小尺寸或减少帧数":["This GIF is too large (over 500 MB once decoded). Please reduce its size or frame count first.","このGIFは大きすぎます（デコード後500MB超）。先にサイズかフレーム数を減らしてください。","Этот GIF слишком большой (после декодирования больше 500 МБ). Сначала уменьшите размер или число кадров.","Este GIF es demasiado grande (más de 500 MB al decodificar). Reduce antes su tamaño o fotogramas.","이 GIF는 너무 큽니다(디코딩 후 500MB 초과). 먼저 크기나 프레임 수를 줄여 주세요.","這個 GIF 太大了（解碼後超過 500MB），請先縮小尺寸或減少幀數","Este GIF é demasiado grande (mais de 500 MB depois de descodificado). Reduza primeiro o tamanho ou o número de fotogramas.","Ce GIF est trop volumineux (plus de 500 Mo une fois décodé). Réduisez d’abord sa taille ou son nombre d’images.","Dieses GIF ist zu groß (über 500 MB entpackt). Bitte zuerst Größe oder Bildanzahl verringern."],"没有读到任何画面，文件可能已损坏":["No image data found; the file may be corrupted","画像データが読み取れません。ファイルが壊れている可能性があります","Изображение не найдено, файл может быть повреждён","No se encontró ninguna imagen; el archivo puede estar dañado","이미지를 읽지 못했습니다. 파일이 손상되었을 수 있습니다","沒有讀到任何畫面，檔案可能已損壞","Não foram encontradas imagens; o ficheiro pode estar danificado","Aucune image trouvée ; le fichier est peut-être corrompu","Keine Bilddaten gefunden; die Datei ist möglicherweise beschädigt"],"无法识别这个文件，目前支持 GIF、APNG、WebP、PNG、JPG":["Unrecognised file. Supported: GIF, APNG, WebP, PNG, JPG","このファイルは認識できません。対応形式：GIF・APNG・WebP・PNG・JPG","Файл не распознан. Поддерживаются: GIF, APNG, WebP, PNG, JPG","Archivo no reconocido. Compatibles: GIF, APNG, WebP, PNG, JPG","알 수 없는 파일입니다. 지원 형식: GIF, APNG, WebP, PNG, JPG","無法識別這個檔案，目前支援 GIF、APNG、WebP、PNG、JPG","Ficheiro não reconhecido. Formatos suportados: GIF, APNG, WebP, PNG, JPG","Fichier non reconnu. Formats pris en charge : GIF, APNG, WebP, PNG, JPG","Datei nicht erkannt. Unterstützt: GIF, APNG, WebP, PNG, JPG"],"帧数太多（超过 1000 帧）":["Too many frames (over 1000)","フレーム数が多すぎます（1000超）","Слишком много кадров (больше 1000)","Demasiados fotogramas (más de 1000)","프레임이 너무 많습니다 (1000개 초과)","幀數太多（超過 1000 幀）","Demasiados fotogramas (mais de 1000)","Trop d’images (plus de 1000)","Zu viele Bilder (über 1000)"],"文件太大了，请先缩小尺寸或减少帧数":["File too large. Please reduce its size or frame count first.","ファイルが大きすぎます。先にサイズかフレーム数を減らしてください。","Файл слишком большой. Сначала уменьшите размер или число кадров.","Archivo demasiado grande. Reduce antes su tamaño o fotogramas.","파일이 너무 큽니다. 먼저 크기나 프레임 수를 줄여 주세요.","檔案太大了，請先縮小尺寸或減少幀數","Ficheiro demasiado grande. Reduza primeiro o tamanho ou o número de fotogramas.","Fichier trop volumineux. Réduisez d’abord sa taille ou son nombre d’images.","Datei zu groß. Bitte zuerst Größe oder Bildanzahl verringern."],"当前浏览器无法读取动画，只载入了第一帧":["This browser cannot read the animation; only the first frame was loaded","このブラウザではアニメを読み込めないため、最初のフレームだけ読み込みました","Этот браузер не может прочитать анимацию, загружен только первый кадр","Este navegador no puede leer la animación; solo se cargó el primer fotograma","이 브라우저는 애니메이션을 읽을 수 없어 첫 프레임만 불러왔습니다","當前瀏覽器無法讀取動畫，只載入了第一幀","Este navegador não consegue ler a animação; só foi carregado o primeiro fotograma","Ce navigateur ne peut pas lire l’animation ; seule la première image a été chargée","Dieser Browser kann die Animation nicht lesen; nur das erste Bild wurde geladen"],"GIF：兼容性最好，但透明只有「有」和「没有」两档，边缘会有一点锯齿。":["GIF: most compatible, but transparency is on/off only, so edges look slightly jagged.","GIF：互換性は最高ですが、透明は「あり／なし」の2段階のみで、縁に少しギザギザが出ます。","GIF: самая широкая совместимость, но прозрачность только «есть/нет», поэтому края немного зубчатые.","GIF: la mayor compatibilidad, pero la transparencia es solo sí/no, así que los bordes salen algo dentados.","GIF: 호환성이 가장 좋지만 투명도가 있음/없음 두 단계뿐이라 가장자리가 약간 거칠어 보입니다.","GIF：相容性最好，但透明只有「有」和「沒有」兩檔，邊緣會有一點鋸齒。","GIF: o mais compatível, mas a transparência é só ligada/desligada, por isso as bordas ficam um pouco serrilhadas.","GIF : le plus compatible, mais la transparence est tout ou rien, les bords sont donc un peu crénelés.","GIF: am kompatibelsten, aber Transparenz gibt es nur an/aus, daher wirken die Kanten leicht gezackt."],"APNG：保留半透明边缘，画质最好。文件后缀是 .png，大多数浏览器和聊天软件能直接播放。":["APNG: keeps soft semi-transparent edges, best quality. The file ends in .png and plays in most browsers and chat apps.","APNG：半透明の縁を保てて画質は最良。拡張子は .png で、多くのブラウザやチャットアプリでそのまま再生できます。","APNG: сохраняет полупрозрачные края, лучшее качество. Файл с расширением .png воспроизводится в большинстве браузеров и мессенджеров.","APNG: conserva los bordes semitransparentes, la mejor calidad. El archivo termina en .png y se reproduce en la mayoría de navegadores y apps de chat.","APNG: 반투명 가장자리를 유지해 화질이 가장 좋습니다. 확장자는 .png이며 대부분의 브라우저와 메신저에서 바로 재생됩니다.","APNG：保留半透明邊緣，畫質最好。檔案後綴是 .png，大多數瀏覽器和聊天軟體能直接播放。","APNG: mantém as bordas semitransparentes suaves, melhor qualidade. O ficheiro termina em .png e reproduz-se na maioria dos navegadores e aplicações de chat.","APNG : conserve les bords semi-transparents doux, meilleure qualité. Le fichier se termine en .png et se lit dans la plupart des navigateurs et applis de messagerie.","APNG: erhält weiche halbtransparente Kanten, beste Qualität. Die Datei endet auf .png und läuft in den meisten Browsern und Chat-Apps."],"WebP：体积通常比 APNG 小很多，同样保留半透明边缘。部分老软件不能播放。":["WebP: usually much smaller than APNG and also keeps semi-transparent edges. Some older software cannot play it.","WebP：通常APNGよりかなり小さく、半透明の縁も保てます。古いソフトでは再生できない場合があります。","WebP: обычно заметно меньше APNG и тоже сохраняет полупрозрачные края. Часть старых программ не воспроизводит.","WebP: suele pesar mucho menos que APNG y también conserva bordes semitransparentes. Algunos programas antiguos no lo reproducen.","WebP: 보통 APNG보다 훨씬 작고 반투명 가장자리도 유지합니다. 일부 오래된 소프트웨어에서는 재생되지 않습니다.","WebP：體積通常比 APNG 小很多，同樣保留半透明邊緣。部分老軟體不能播放。","WebP: normalmente muito menor que APNG e também mantém bordas semitransparentes. Alguns programas antigos não o reproduzem.","WebP : généralement bien plus léger que l’APNG et conserve aussi les bords semi-transparents. Certains vieux logiciels ne le lisent pas.","WebP: meist deutlich kleiner als APNG und erhält ebenfalls halbtransparente Kanten. Manche ältere Software kann es nicht abspielen."],"PNG 序列：每帧一张透明 PNG，打包成 zip，附带 frames.json 记录每帧时长。适合导入视频或游戏引擎。":["PNG sequence: one transparent PNG per frame, zipped with frames.json holding each frame's duration. Good for video editors and game engines.","PNG連番：1コマ1枚の透過PNGをzipにまとめ、各コマの長さを記録した frames.json を同梱。動画編集やゲームエンジン向け。","PNG-кадры: по одному прозрачному PNG на кадр в zip, плюс frames.json с длительностью каждого кадра. Подходит для видеомонтажа и игровых движков.","Secuencia PNG: un PNG transparente por fotograma en un zip, con frames.json que guarda la duración de cada uno. Útil para editores de vídeo y motores de juego.","PNG 시퀀스: 프레임마다 투명 PNG 한 장을 zip으로 묶고, 각 프레임 길이를 담은 frames.json을 함께 넣습니다. 영상 편집이나 게임 엔진에 적합합니다.","PNG 序列：每幀一張透明 PNG，打包成 zip，附帶 frames.json 記錄每幀時長。適合匯入影片或遊戲引擎。","Sequência PNG: um PNG transparente por fotograma, num zip com frames.json com a duração de cada um. Ideal para editores de vídeo e motores de jogos.","Séquence PNG : un PNG transparent par image, dans un zip avec frames.json indiquant la durée de chacune. Idéal pour le montage vidéo et les moteurs de jeu.","PNG-Sequenz: pro Bild ein transparentes PNG, als ZIP mit frames.json für die Dauer jedes Bildes. Gut für Videoschnitt und Spiele-Engines."],"精灵图：把所有帧排成一张透明 PNG，适合做游戏。文件名里带有列数和行数。":["Sprite sheet: all frames laid out in one transparent PNG, handy for games. The file name includes the column and row count.","スプライトシート：全コマを1枚の透過PNGに並べます。ゲーム向け。ファイル名に列数と行数が入ります。","Спрайт-лист: все кадры в одном прозрачном PNG, удобно для игр. В имени файла указаны число столбцов и строк.","Hoja de sprites: todos los fotogramas en un solo PNG transparente, útil para juegos. El nombre del archivo incluye columnas y filas.","스프라이트 시트: 모든 프레임을 투명 PNG 한 장에 배치합니다. 게임용으로 좋으며 파일 이름에 열·행 수가 들어갑니다.","精靈圖：把所有幀排成一張透明 PNG，適合做遊戲。檔案名裡帶有列數和行數。","Folha de sprites: todos os fotogramas numa única imagem PNG transparente, útil para jogos. O nome do ficheiro inclui o número de colunas e linhas.","Planche de sprites : toutes les images dans un seul PNG transparent, pratique pour les jeux. Le nom du fichier indique le nombre de colonnes et de lignes.","Sprite-Sheet: alle Bilder in einem transparenten PNG, praktisch für Spiele. Der Dateiname enthält die Spalten- und Zeilenzahl."],"处理中 {0}/{1}":["Processing {0}/{1}","処理中 {0}/{1}","Обработка {0}/{1}","Procesando {0}/{1}","처리 중 {0}/{1}","處理中 {0}/{1}","A processar {0}/{1}","Traitement {0}/{1}","Verarbeitung {0}/{1}"],"第 {0} / {1} 帧 · {2}ms":["Frame {0} / {1} · {2} ms","フレーム {0} / {1} · {2} ms","Кадр {0} / {1} · {2} мс","Fotograma {0} / {1} · {2} ms","프레임 {0} / {1} · {2}ms","第 {0} / {1} 幀 · {2}ms","Fotograma {0} / {1} · {2} ms","Image {0} / {1} · {2} ms","Bild {0} / {1} · {2} ms"],"至少要保留一帧":["Keep at least one frame","最低1フレームは残してください","Нужно оставить хотя бы один кадр","Debe quedar al menos un fotograma","최소 한 프레임은 남겨야 합니다","至少要保留一幀","Mantenha pelo menos um fotograma","Gardez au moins une image","Mindestens ein Bild behalten"],"{0}  ·  {1}×{2}  ·  {3} 帧  ·  {4} 秒":["{0}  ·  {1}×{2}  ·  {3} frames  ·  {4} s","{0}  ·  {1}×{2}  ·  {3} フレーム  ·  {4} 秒","{0}  ·  {1}×{2}  ·  {3} кадров  ·  {4} с","{0}  ·  {1}×{2}  ·  {3} fotogramas  ·  {4} s","{0}  ·  {1}×{2}  ·  {3}프레임  ·  {4}초","{0}  ·  {1}×{2}  ·  {3} 幀  ·  {4} 秒","{0}  ·  {1}×{2}  ·  {3} fotogramas  ·  {4} s","{0}  ·  {1}×{2}  ·  {3} images  ·  {4} s","{0}  ·  {1}×{2}  ·  {3} Bilder  ·  {4} s"],"读取失败":["Failed to read the file","読み込みに失敗しました","Не удалось прочитать файл","No se pudo leer el archivo","파일을 읽지 못했습니다","讀取失敗","Falha ao ler o ficheiro","Échec de lecture du fichier","Datei konnte nicht gelesen werden"],"保留第 {0} 帧":["Keep frame {0}","フレーム {0} を残す","Оставить кадр {0}","Conservar fotograma {0}","프레임 {0} 유지","保留第 {0} 幀","Manter o fotograma {0}","Garder l’image {0}","Bild {0} behalten"],"文件超过 80MB，请先压缩后再试":["File is over 80 MB. Please compress it first.","ファイルが80MBを超えています。先に圧縮してください。","Файл больше 80 МБ. Сначала сожмите его.","El archivo supera los 80 MB. Comprímelo primero.","파일이 80MB를 넘습니다. 먼저 압축해 주세요.","檔案超過 80MB，請先壓縮後再試","O ficheiro tem mais de 80 MB. Comprima-o primeiro.","Le fichier dépasse 80 Mo. Compressez-le d’abord.","Die Datei ist größer als 80 MB. Bitte zuerst komprimieren."],"正在读取…":["Reading…","読み込み中…","Чтение…","Leyendo…","읽는 중…","正在讀取…","A ler…","Lecture…","Wird gelesen …"],"正在生成示例…":["Generating sample…","サンプルを生成中…","Создание образца…","Generando ejemplo…","예시 생성 중…","正在生成範例…","A gerar exemplo…","Génération de l’exemple…","Beispiel wird erzeugt …"],"示例-白底":["sample-white","サンプル-白背景","sample-white","sample-white","sample-white","範例-白底","exemplo-branco","exemple-blanc","beispiel-weiss"],"示例-黑底":["sample-black","サンプル-黒背景","sample-black","sample-black","sample-black","範例-黑底","exemplo-preto","exemple-noir","beispiel-schwarz"],"无损":["lossless","可逆","без потерь","sin pérdida","무손실","無損","sem perdas","sans perte","verlustfrei"],"已恢复默认参数":["Settings reset","設定をリセットしました","Настройки сброшены","Ajustes restablecidos","설정을 초기화했습니다","已恢復預設參數","Definições repostas","Réglages réinitialisés","Einstellungen zurückgesetzt"],"在预览图上点一下要去掉的背景色":["Click the background colour on the preview","プレビュー上で消したい背景色をクリック","Щёлкните по цвету фона на превью","Haz clic en el color de fondo de la vista previa","미리보기에서 지울 배경색을 클릭하세요","在預覽圖上點一下要去掉的背景色","Clique na cor de fundo na pré-visualização","Cliquez sur la couleur de fond dans l’aperçu","Klicken Sie in der Vorschau auf die Hintergrundfarbe"],"在预览图上点一下要处理的色块":["Click the colour block on the preview","プレビュー上で処理したい色の部分をクリック","Щёлкните по нужному участку на превью","Haz clic en el bloque de color de la vista previa","미리보기에서 처리할 색 영역을 클릭하세요","在預覽圖上點一下要處理的色塊","Clique no bloco de cor na pré-visualização","Cliquez sur le bloc de couleur dans l’aperçu","Klicken Sie in der Vorschau auf den Farbbereich"],"没有手动修改可清除":["No manual edits to clear","消去する手動修正はありません","Нет ручных правок для сброса","No hay retoques que borrar","지울 수동 수정이 없습니다","沒有手動修改可清除","Não há edições manuais para limpar","Aucune retouche manuelle à effacer","Keine manuellen Änderungen zu löschen"],"已清除手动修改，可以撤销":["Manual edits cleared (you can undo)","手動修正を消去しました（元に戻せます）","Правки сброшены (можно отменить)","Retoques borrados (puedes deshacer)","수동 수정을 지웠습니다 (실행 취소 가능)","已清除手動修改，可以撤銷","Edições manuais limpas (pode anular)","Retouches manuelles effacées (annulation possible)","Manuelle Änderungen gelöscht (Rückgängig möglich)"],"点到的是已经透明的地方":["That spot is already transparent","そこはすでに透明です","Это место уже прозрачное","Ese punto ya es transparente","이미 투명한 곳입니다","點到的是已經透明的地方","Esse ponto já é transparente","Cet endroit est déjà transparent","Diese Stelle ist bereits transparent"],"已擦除这块颜色{0}，Ctrl+Z 可撤销":["Erased that colour block{0}; Ctrl+Z to undo","その色の部分を消去しました{0}。Ctrl+Z で元に戻せます","Участок стёрт{0}; Ctrl+Z — отмена","Bloque de color borrado{0}; Ctrl+Z para deshacer","해당 색 영역을 지웠습니다{0}. Ctrl+Z로 취소 가능","已擦除這塊顏色{0}，Ctrl+Z 可撤銷","Bloco de cor apagado{0}; Ctrl+Z para anular","Bloc de couleur effacé{0} ; Ctrl+Z pour annuler","Farbbereich gelöscht{0}; Strg+Z macht es rückgängig"],"已恢复这块颜色{0}，Ctrl+Z 可撤销":["Restored that colour block{0}; Ctrl+Z to undo","その色の部分を復元しました{0}。Ctrl+Z で元に戻せます","Участок возвращён{0}; Ctrl+Z — отмена","Bloque de color restaurado{0}; Ctrl+Z para deshacer","해당 색 영역을 복원했습니다{0}. Ctrl+Z로 취소 가능","已恢復這塊顏色{0}，Ctrl+Z 可撤銷","Bloco de cor restaurado{0}; Ctrl+Z para anular","Bloc de couleur restauré{0} ; Ctrl+Z pour annuler","Farbbereich wiederhergestellt{0}; Strg+Z macht es rückgängig"],"（{0} 帧）":[" ({0} frames)","（{0} フレーム）"," ({0} кадров)"," ({0} fotogramas)"," ({0}프레임)","（{0} 幀）"," ({0} fotogramas)"," ({0} images)"," ({0} Bilder)"],"这个位置没有选中任何像素":["No pixels were selected there","そこでは何も選択されませんでした","В этой точке ничего не выделено","No se seleccionó ningún píxel ahí","그 위치에서는 선택된 픽셀이 없습니다","這個位置沒有選中任何像素","Nenhum pixel selecionado nesse ponto","Aucun pixel sélectionné à cet endroit","An dieser Stelle wurde kein Pixel ausgewählt"],"选了多个文件，只载入第一个。要一次处理多个，请用「批量处理」":["Several files selected; only the first was loaded. Use “Batch” to process many at once.","複数のファイルが選ばれたため、最初の1つだけ読み込みました。まとめて処理するには「一括処理」を使ってください。","Выбрано несколько файлов — загружен только первый. Для нескольких сразу используйте «Пакетная обработка».","Seleccionaste varios archivos; solo se cargó el primero. Para varios a la vez usa «Procesar por lotes».","여러 파일을 선택해 첫 번째만 불러왔습니다. 한 번에 처리하려면 「일괄 처리」를 사용하세요.","選了多個檔案，只載入第一個。要一次處理多個，請用「批量處理」","Vários ficheiros selecionados; só o primeiro foi carregado. Use «Em lote» para processar vários de uma vez.","Plusieurs fichiers sélectionnés ; seul le premier a été chargé. Utilisez « Par lot » pour en traiter plusieurs à la fois.","Mehrere Dateien gewählt; nur die erste wurde geladen. Für viele Dateien auf einmal „Stapel“ verwenden."],"输出 {0}×{1}{2} · {3} 帧 · {4} 秒":["Output {0}×{1}{2} · {3} frames · {4} s","出力 {0}×{1}{2} · {3} フレーム · {4} 秒","Результат {0}×{1}{2} · {3} кадров · {4} с","Salida {0}×{1}{2} · {3} fotogramas · {4} s","출력 {0}×{1}{2} · {3}프레임 · {4}초","輸出 {0}×{1}{2} · {3} 幀 · {4} 秒","Saída {0}×{1}{2} · {3} fotogramas · {4} s","Sortie {0}×{1}{2} · {3} images · {4} s","Ausgabe {0}×{1}{2} · {3} Bilder · {4} s"],"（裁边前）":[" (before trim)","（トリミング前）"," (до обрезки)"," (antes de recortar)"," (자르기 전)","（裁邊前）"," (antes do corte)"," (avant rognage)"," (vor dem Beschneiden)"],"图片编码失败":["Image encoding failed","画像のエンコードに失敗しました","Не удалось закодировать изображение","Falló la codificación de la imagen","이미지 인코딩에 실패했습니다","圖片編碼失敗","Falha na codificação da imagem","Échec de l’encodage de l’image","Bildkodierung fehlgeschlagen"],"动图":["animation","アニメ","animation","animation","animation","動圖","animação","animation","animation"],"编码 GIF {0}/{1}":["Encoding GIF {0}/{1}","GIFをエンコード中 {0}/{1}","Кодирование GIF {0}/{1}","Codificando GIF {0}/{1}","GIF 인코딩 {0}/{1}","編碼 GIF {0}/{1}","A codificar GIF {0}/{1}","Encodage GIF {0}/{1}","GIF-Kodierung {0}/{1}"],"编码 APNG {0}/{1}":["Encoding APNG {0}/{1}","APNGをエンコード中 {0}/{1}","Кодирование APNG {0}/{1}","Codificando APNG {0}/{1}","APNG 인코딩 {0}/{1}","編碼 APNG {0}/{1}","A codificar APNG {0}/{1}","Encodage APNG {0}/{1}","APNG-Kodierung {0}/{1}"],"编码 WebP {0}/{1}":["Encoding WebP {0}/{1}","WebPをエンコード中 {0}/{1}","Кодирование WebP {0}/{1}","Codificando WebP {0}/{1}","WebP 인코딩 {0}/{1}","編碼 WebP {0}/{1}","A codificar WebP {0}/{1}","Encodage WebP {0}/{1}","WebP-Kodierung {0}/{1}"],"打包 {0}/{1}":["Packing {0}/{1}","パッキング中 {0}/{1}","Упаковка {0}/{1}","Empaquetando {0}/{1}","압축 중 {0}/{1}","打包 {0}/{1}","A empacotar {0}/{1}","Compression {0}/{1}","Packen {0}/{1}"],"_抠底":["_cutout","_cutout","_cutout","_cutout","_cutout","_摳底","_recorte","_detoure","_freigestellt"],"_序列帧":["_frames","_frames","_frames","_frames","_frames","_序列幀","_fotogramas","_images","_bilder"],"_精灵图_":["_sprite_","_sprite_","_sprite_","_sprite_","_sprite_","_精靈圖_","_sprites_","_sprites_","_sprites_"],"浏览器生成的 PNG 格式不一致，请改用 PNG 序列":["The browser produced inconsistent PNG data. Please use PNG sequence instead.","ブラウザが生成したPNGの形式が一致しません。PNG連番を使ってください。","Браузер создал PNG с несовпадающими параметрами. Используйте PNG-кадры.","El navegador generó PNG inconsistentes. Usa la secuencia PNG.","브라우저가 만든 PNG 형식이 일치하지 않습니다. PNG 시퀀스를 사용하세요.","瀏覽器生成的 PNG 格式不一致，請改用 PNG 序列","O navegador gerou dados PNG inconsistentes. Use antes a sequência PNG.","Le navigateur a produit des données PNG incohérentes. Utilisez plutôt la séquence PNG.","Der Browser hat inkonsistente PNG-Daten erzeugt. Bitte stattdessen die PNG-Sequenz verwenden."],"这个浏览器不能编码 WebP，请改用 APNG 或 GIF":["This browser cannot encode WebP. Please use APNG or GIF.","このブラウザはWebPをエンコードできません。APNGかGIFを使ってください。","Этот браузер не умеет кодировать WebP. Используйте APNG или GIF.","Este navegador no puede codificar WebP. Usa APNG o GIF.","이 브라우저는 WebP를 인코딩할 수 없습니다. APNG나 GIF를 사용하세요.","這個瀏覽器不能編碼 WebP，請改用 APNG 或 GIF","Este navegador não consegue codificar WebP. Use APNG ou GIF.","Ce navigateur ne peut pas encoder le WebP. Utilisez l’APNG ou le GIF.","Dieser Browser kann kein WebP kodieren. Bitte APNG oder GIF verwenden."],"WebP 编码结果无法识别":["The WebP output could not be parsed","WebPの出力を解析できませんでした","Не удалось разобрать результат WebP","No se pudo interpretar la salida WebP","WebP 결과를 해석하지 못했습니다","WebP 編碼結果無法識別","Não foi possível interpretar o resultado WebP","Impossible d’analyser la sortie WebP","Die WebP-Ausgabe konnte nicht gelesen werden"],"精灵图太大（{0}×{1}），请减少列数、帧数或尺寸":["Sprite sheet too large ({0}×{1}). Reduce columns, frames or size.","スプライトシートが大きすぎます（{0}×{1}）。列数・フレーム数・サイズを減らしてください。","Спрайт-лист слишком велик ({0}×{1}). Уменьшите число столбцов, кадров или размер.","La hoja de sprites es demasiado grande ({0}×{1}). Reduce columnas, fotogramas o tamaño.","스프라이트 시트가 너무 큽니다({0}×{1}). 열 수, 프레임 수 또는 크기를 줄이세요.","精靈圖太大（{0}×{1}），請減少列數、幀數或尺寸","Folha de sprites demasiado grande ({0}×{1}). Reduza colunas, fotogramas ou tamanho.","Planche de sprites trop grande ({0}×{1}). Réduisez colonnes, images ou taille.","Sprite-Sheet zu groß ({0}×{1}). Spalten, Bilder oder Größe verringern."],"精灵图 {0} 列 × {1} 行，单帧 {2}×{3}":["Sprite sheet: {0} columns × {1} rows, {2}×{3} per frame","スプライトシート：{0} 列 × {1} 行、1コマ {2}×{3}","Спрайт-лист: {0} столбцов × {1} строк, кадр {2}×{3}","Hoja de sprites: {0} columnas × {1} filas, {2}×{3} por fotograma","스프라이트 시트: {0}열 × {1}행, 프레임당 {2}×{3}","精靈圖 {0} 列 × {1} 行，單幀 {2}×{3}","Folha de sprites: {0} colunas × {1} linhas, {2}×{3} por fotograma","Planche de sprites : {0} colonnes × {1} lignes, {2}×{3} par image","Sprite-Sheet: {0} Spalten × {1} Zeilen, {2}×{3} pro Bild"],"处理中":["Processing","処理中","Обработка","Procesando","처리 중","處理中","A processar","Traitement","Verarbeitung"],"输出太大了（{0}×{1}，{2} 帧），请缩小尺寸或减少帧数":["Output too large ({0}×{1}, {2} frames). Reduce the size or frame count.","出力が大きすぎます（{0}×{1}、{2} フレーム）。サイズかフレーム数を減らしてください。","Результат слишком велик ({0}×{1}, {2} кадров). Уменьшите размер или число кадров.","La salida es demasiado grande ({0}×{1}, {2} fotogramas). Reduce el tamaño o los fotogramas.","출력이 너무 큽니다({0}×{1}, {2}프레임). 크기나 프레임 수를 줄이세요.","輸出太大了（{0}×{1}，{2} 幀），請縮小尺寸或減少幀數","Saída demasiado grande ({0}×{1}, {2} fotogramas). Reduza o tamanho ou o número de fotogramas.","Sortie trop grande ({0}×{1}, {2} images). Réduisez la taille ou le nombre d’images.","Ausgabe zu groß ({0}×{1}, {2} Bilder). Größe oder Bildanzahl verringern."],"没能压到 {0} MB，当前 {1}。可以试试抽帧或关掉抖动":["Could not get under {0} MB (now {1}). Try skipping frames or turning off dithering.","{0} MB まで小さくできませんでした（現在 {1}）。コマ間引きやディザのオフを試してください。","Не удалось уложиться в {0} МБ (сейчас {1}). Попробуйте прореживание кадров или отключите дизеринг.","No se pudo bajar de {0} MB (ahora {1}). Prueba a saltar fotogramas o desactivar el tramado.","{0}MB 이하로 줄이지 못했습니다 (현재 {1}). 프레임 건너뛰기나 디더링 끄기를 시도해 보세요.","沒能壓到 {0} MB，當前 {1}。可以試試抽幀或關掉抖動","Não foi possível ficar abaixo de {0} MB (agora {1}). Tente saltar fotogramas ou desligar o dithering.","Impossible de passer sous {0} Mo (actuellement {1}). Essayez de sauter des images ou de désactiver le tramage.","{0} MB wurden nicht unterschritten (jetzt {1}). Bilder auslassen oder Dithering ausschalten."],"为了达到目标大小，尺寸缩到了 {0}%（{1}×{2}）":["To hit the target size, the output was scaled to {0}% ({1}×{2})","目標サイズに収めるため、{0}%（{1}×{2}）に縮小しました","Чтобы уложиться в целевой размер, результат уменьшен до {0}% ({1}×{2})","Para llegar al tamaño objetivo, la salida se redujo al {0}% ({1}×{2})","목표 크기에 맞추려고 {0}%({1}×{2})로 축소했습니다","為了達到目標大小，尺寸縮到了 {0}%（{1}×{2}）","Para atingir o tamanho alvo, a saída foi reduzida para {0}% ({1}×{2})","Pour atteindre la taille cible, la sortie a été réduite à {0} % ({1}×{2})","Zum Erreichen der Zielgröße wurde die Ausgabe auf {0} % skaliert ({1}×{2})"],"已保存 {0}（{1}）":["Saved {0} ({1})","{0} を保存しました（{1}）","Сохранено: {0} ({1})","Guardado {0} ({1})","{0} 저장됨 ({1})","已儲存 {0}（{1}）","Guardado {0} ({1})","Enregistré {0} ({1})","Gespeichert {0} ({1})"],"已取消保存":["Save cancelled","保存をキャンセルしました","Сохранение отменено","Guardado cancelado","저장이 취소되었습니다","已取消儲存","Gravação cancelada","Enregistrement annulé","Speichern abgebrochen"],"保存失败：{0}":["Save failed: {0}","保存に失敗しました：{0}","Не удалось сохранить: {0}","Error al guardar: {0}","저장 실패: {0}","儲存失敗：{0}","Falha ao guardar: {0}","Échec de l’enregistrement : {0}","Speichern fehlgeschlagen: {0}"],"未知原因":["unknown reason","不明な原因","неизвестная причина","motivo desconocido","알 수 없는 이유","未知原因","motivo desconhecido","raison inconnue","unbekannter Grund"],"当前环境不支持保存文件，请换个浏览器打开":["Saving files is not supported here. Please open this page in another browser.","この環境ではファイルを保存できません。別のブラウザで開いてください。","Здесь нельзя сохранять файлы. Откройте страницу в другом браузере.","Este entorno no permite guardar archivos. Abre la página en otro navegador.","이 환경에서는 파일을 저장할 수 없습니다. 다른 브라우저에서 열어 주세요.","當前環境不支援儲存檔案，請換個瀏覽器打開","Guardar ficheiros não é suportado aqui. Abra esta página noutro navegador.","L’enregistrement de fichiers n’est pas pris en charge ici. Ouvrez cette page dans un autre navigateur.","Speichern wird hier nicht unterstützt. Bitte die Seite in einem anderen Browser öffnen."],"已导出 {0}（{1}）":["Exported {0} ({1})","{0} を書き出しました（{1}）","Экспортировано: {0} ({1})","Exportado {0} ({1})","{0} 내보냄 ({1})","已匯出 {0}（{1}）","Exportado {0} ({1})","Exporté {0} ({1})","Exportiert {0} ({1})"],"正在导出…":["Exporting…","書き出し中…","Экспорт…","Exportando…","내보내는 중…","正在匯出…","A exportar…","Export en cours…","Wird exportiert …"],"导出 {0}":["Export {0}","{0} を書き出す","Сохранить {0}","Exportar {0}","{0} 내보내기","匯出 {0}","Exportar {0}","Exporter {0}","{0} exportieren"],"导出失败：{0}":["Export failed: {0}","書き出しに失敗しました：{0}","Ошибка экспорта: {0}","Error al exportar: {0}","내보내기 실패: {0}","匯出失敗：{0}","Falha na exportação: {0}","Échec de l’export : {0}","Export fehlgeschlagen: {0}"],"没有找到可处理的图片（支持 GIF、APNG、WebP、PNG、JPG）":["No usable images found (GIF, APNG, WebP, PNG, JPG are supported)","処理できる画像が見つかりません（GIF・APNG・WebP・PNG・JPG に対応）","Подходящих изображений не найдено (поддерживаются GIF, APNG, WebP, PNG, JPG)","No se encontraron imágenes válidas (compatibles: GIF, APNG, WebP, PNG, JPG)","처리할 수 있는 이미지가 없습니다 (GIF, APNG, WebP, PNG, JPG 지원)","沒有找到可處理的圖片（支援 GIF、APNG、WebP、PNG、JPG）","Nenhuma imagem utilizável encontrada (suporta GIF, APNG, WebP, PNG, JPG)","Aucune image exploitable trouvée (GIF, APNG, WebP, PNG, JPG pris en charge)","Keine verwendbaren Bilder gefunden (GIF, APNG, WebP, PNG, JPG werden unterstützt)"],"批量 {0}/{1}：{2}":["Batch {0}/{1}: {2}","一括 {0}/{1}：{2}","Пакет {0}/{1}: {2}","Lote {0}/{1}: {2}","일괄 {0}/{1}: {2}","批量 {0}/{1}：{2}","Lote {0}/{1}: {2}","Lot {0}/{1} : {2}","Stapel {0}/{1}: {2}"],"失败":["failed","失敗","ошибка","error","실패","失敗","falhou","échec","fehlgeschlagen"],"{0}（{1}）":["{0} ({1})","{0}（{1}）","{0} ({1})","{0} ({1})","{0} ({1})","{0}（{1}）","{0} ({1})","{0} ({1})","{0} ({1})"],"；":["; ","；","; ","; ","; ","；","; ","; ","; "],"批量处理失败：{0}":["Batch failed: {0}","一括処理に失敗しました：{0}","Пакетная обработка не удалась: {0}","Falló el lote: {0}","일괄 처리 실패: {0}","批量處理失敗：{0}","Falha no processamento em lote: {0}","Échec du traitement par lot : {0}","Stapelverarbeitung fehlgeschlagen: {0}"],"批量抠底_{0}个文件":["batch-cutout_{0}-files","一括処理_{0}ファイル","batch-cutout_{0}-files","batch-cutout_{0}-files","batch-cutout_{0}-files","批量摳底_{0}個檔案","recorte-em-lote_{0}-ficheiros","detourage-par-lot_{0}-fichiers","stapel-freistellung_{0}-dateien"],"{0} 个文件失败：{1}":["{0} file(s) failed: {1}","{0} 個のファイルが失敗：{1}","Ошибок: {0}. {1}","{0} archivo(s) fallaron: {1}","{0}개 파일 실패: {1}","{0} 個檔案失敗：{1}","{0} ficheiro(s) falharam: {1}","{0} fichier(s) en échec : {1}","{0} Datei(en) fehlgeschlagen: {1}"],"这个浏览器不能编码 WebP":["This browser cannot encode WebP","このブラウザはWebPをエンコードできません","Этот браузер не умеет кодировать WebP","Este navegador no puede codificar WebP","이 브라우저는 WebP를 인코딩할 수 없습니다","這個瀏覽器不能編碼 WebP","Este navegador não consegue codificar WebP","Ce navigateur ne peut pas encoder le WebP","Dieser Browser kann kein WebP kodieren"],"+滚轮 或触控板双指捏合：缩放预览":["+ wheel or trackpad pinch: zoom the preview","＋ホイール／トラックパッドのピンチ：プレビューを拡大縮小","+ колесо или щипок на тачпаде: масштаб превью","+ rueda o pellizco en el trackpad: zoom de la vista previa","+ 휠 또는 트랙패드 핀치: 미리보기 확대/축소","+滾輪 或觸控板雙指捏合：縮放預覽","+ roda do rato ou pinça no trackpad: zoom da pré-visualização","+ molette ou pincement sur le trackpad : zoom de l’aperçu","+ Mausrad oder Pinch-Geste auf dem Trackpad: Vorschau zoomen"],"Discord 表情":["Discord emoji","Discord 絵文字","Эмодзи Discord","Emoji de Discord","Discord 이모티콘","Discord 表情","Emoji do Discord","Émoji Discord","Discord-Emoji"],"GIF 边缘预混合":["GIF edge pre-blend","GIF 縁の事前ブレンド","Предсмешивание краёв GIF","Premezcla de bordes GIF","GIF 가장자리 사전 블렌딩","GIF 邊緣預混合","Pré-mistura das bordas do GIF","Prémélange des bords GIF","GIF-Kanten vormischen"],"GIF 颜色数":["GIF colours","GIF の色数","Цвета GIF","Colores del GIF","GIF 색상 수","GIF 顏色數","Cores do GIF","Couleurs du GIF","GIF-Farben"],"LINE 动态贴图":["LINE animated sticker","LINE アニメスタンプ","Анимированный стикер LINE","Sticker animado de LINE","LINE 움직이는 스티커","LINE 動態貼圖","Sticker animado do LINE","Sticker animé LINE","LINE-Animationssticker"],"Slack 表情":["Slack emoji","Slack 絵文字","Эмодзи Slack","Emoji de Slack","Slack 이모티콘","Slack 表情","Emoji do Slack","Émoji Slack","Slack-Emoji"],"px（0 为按倍数缩放）":["px (0 = scale by the multiplier)","px（0 なら倍率で拡大縮小）","px (0 — масштаб по множителю)","px (0 = escalar por multiplicador)","px (0이면 배율로 조정)","px（0 為按倍數縮放）","px (0 = escalar pelo multiplicador)","px (0 = mise à l’échelle par multiplicateur)","px (0 = nach Faktor skalieren)"],"上一帧 / 下一帧":["Previous / next frame","前のフレーム／次のフレーム","Предыдущий / следующий кадр","Fotograma anterior / siguiente","이전 / 다음 프레임","上一幀 / 下一幀","Fotograma anterior / seguinte","Image précédente / suivante","Vorheriges / nächstes Bild"],"不处理":["None","なし","Нет","Ninguno","사용 안 함","不處理","Nenhum","Aucun","Keine"],"再点一种背景色，和已有的一起去掉":["Click another background colour to remove it together with the current ones","別の背景色をクリックすると、今の色と一緒に消せます","Нажмите ещё на один цвет фона — он удалится вместе с текущими","Haz clic en otro color de fondo para quitarlo junto con los actuales","다른 배경색을 클릭하면 기존 색과 함께 지워집니다","再點一種背景色，和已有的一起去掉","Clique noutra cor de fundo para a remover em conjunto com as atuais","Cliquez sur une autre couleur de fond pour la retirer avec les actuelles","Klicken Sie eine weitere Hintergrundfarbe an, um sie zusammen mit den bisherigen zu entfernen"],"勾选「作用于所有帧」后，魔棒会在每一帧里自动找到同色块，会跟着主体移动。":["With “Apply to all frames” ticked, the wand finds the same colour block in every frame and follows the subject as it moves.","「すべてのフレームに適用」にチェックすると、魔法の杖が各フレームで同じ色の塊を探し、被写体の動きに追従します。","Если включить «Применить ко всем кадрам», волшебная палочка найдёт тот же цветовой блок в каждом кадре и будет следовать за объектом.","Con «Aplicar a todos los fotogramas» marcado, la varita encuentra el mismo bloque de color en cada fotograma y sigue al sujeto.","「모든 프레임에 적용」을 체크하면 마법봉이 각 프레임에서 같은 색 영역을 찾아 피사체를 따라갑니다.","勾選「作用于所有幀」後，魔棒會在每一幀裡自動找到同色塊，會跟著主體移動。","Com «Aplicar a todos os fotogramas» marcado, a varinha encontra o mesmo bloco de cor em cada fotograma e acompanha o sujeito.","Avec « Appliquer à toutes les images » coché, la baguette retrouve le même bloc de couleur dans chaque image et suit le sujet.","Mit „Auf alle Bilder anwenden“ findet der Zauberstab in jedem Bild denselben Farbbereich und folgt dem Motiv."],"合并重复帧（GIF / APNG / WebP）":["Merge duplicate frames (GIF / APNG / WebP)","重複フレームを統合（GIF / APNG / WebP）","Объединять одинаковые кадры (GIF / APNG / WebP)","Fusionar fotogramas repetidos (GIF / APNG / WebP)","중복 프레임 합치기 (GIF / APNG / WebP)","合并重復幀（GIF / APNG / WebP）","Unir fotogramas repetidos (GIF / APNG / WebP)","Fusionner les images identiques (GIF / APNG / WebP)","Doppelte Bilder zusammenfassen (GIF / APNG / WebP)"],"同时导出多种格式时，会打包成一个 zip。":["When several formats are selected, they are bundled into one zip.","複数の形式を選ぶと、1つの zip にまとめられます。","Если выбрано несколько форматов, они упаковываются в один zip.","Si eliges varios formatos, se empaquetan en un solo zip.","여러 형식을 선택하면 하나의 zip으로 묶입니다.","同時匯出多種格式時，會打包成一個 zip。","Ao escolher vários formatos, ficam agrupados num único zip.","Si plusieurs formats sont choisis, ils sont regroupés dans un seul zip.","Bei mehreren Formaten werden sie in einer ZIP-Datei gebündelt."],"在预览图上拖出要保留的区域":["Drag on the preview to mark the area to keep","プレビュー上でドラッグして残す範囲を選択","Выделите на превью область, которую нужно оставить","Arrastra sobre la vista previa para marcar el área que quieres conservar","미리보기에서 드래그하여 남길 영역을 지정하세요","在預覽圖上拖出要保留的區域","Arraste sobre a pré-visualização para marcar a área a manter","Faites glisser sur l’aperçu pour définir la zone à conserver","Ziehen Sie in der Vorschau den Bereich auf, der erhalten bleiben soll"],"复制失败：这个环境不允许写入剪贴板":["Copy failed: this environment does not allow writing to the clipboard","コピーに失敗：この環境ではクリップボードに書き込めません","Не удалось скопировать: эта среда не разрешает запись в буфер обмена","No se pudo copiar: este entorno no permite escribir en el portapapeles","복사 실패: 이 환경에서는 클립보드에 쓸 수 없습니다","復制失敗：這個環境不允許寫入剪貼簿","Falha ao copiar: este ambiente não permite escrever na área de transferência","Échec de la copie : cet environnement n’autorise pas l’écriture dans le presse-papiers","Kopieren fehlgeschlagen: Diese Umgebung erlaubt kein Schreiben in die Zwischenablage"],"复制此帧":["Copy this frame","このフレームをコピー","Копировать кадр","Copiar este fotograma","이 프레임 복사","復制此幀","Copiar este fotograma","Copier cette image","Dieses Bild kopieren"],"已复制当前帧（透明 PNG）":["Current frame copied (transparent PNG)","現在のフレームをコピーしました（透過 PNG）","Текущий кадр скопирован (прозрачный PNG)","Fotograma actual copiado (PNG transparente)","현재 프레임을 복사했습니다 (투명 PNG)","已復制當前幀（透明 PNG）","Fotograma atual copiado (PNG transparente)","Image actuelle copiée (PNG transparent)","Aktuelles Bild kopiert (transparentes PNG)"],"微信表情":["WeChat sticker","WeChat スタンプ","Стикер WeChat","Sticker de WeChat","WeChat 이모티콘","微信表情","Sticker do WeChat","Sticker WeChat","WeChat-Sticker"],"快捷键":["Keyboard shortcuts","ショートカットキー","Горячие клавиши","Atajos de teclado","단축키","快捷鍵","Atalhos de teclado","Raccourcis clavier","Tastenkürzel"],"恢复全部帧":["Restore all frames","すべてのフレームを復元","Вернуть все кадры","Restaurar todos los fotogramas","모든 프레임 복원","恢復全部幀","Restaurar todos os fotogramas","Restaurer toutes les images","Alle Bilder wiederherstellen"],"把当前帧作为透明 PNG 复制到剪贴板":["Copy the current frame to the clipboard as a transparent PNG","現在のフレームを透過 PNG としてクリップボードにコピー","Скопировать текущий кадр в буфер обмена как прозрачный PNG","Copiar el fotograma actual al portapapeles como PNG transparente","현재 프레임을 투명 PNG로 클립보드에 복사","把當前幀作為透明 PNG 復制到剪貼簿","Copiar o fotograma atual para a área de transferência como PNG transparente","Copier l’image actuelle dans le presse-papiers en PNG transparent","Das aktuelle Bild als transparentes PNG in die Zwischenablage kopieren"],"按住 C 键临时查看原图":["Hold C to peek at the original","C キーを押している間、元画像を表示","Удерживайте C, чтобы посмотреть оригинал","Mantén pulsada C para ver el original","C 키를 누르고 있으면 원본을 볼 수 있어요","按住 C 鍵臨時查看原圖","Mantenha C premido para ver o original","Maintenez C pour voir l’original","C gedrückt halten, um das Original zu sehen"],"按住时显示原图":["Hold to show the original","押している間、元画像を表示","Удерживать — показать оригинал","Mantener para mostrar el original","누르는 동안 원본 표시","按住時顯示原圖","Manter premido para mostrar o original","Maintenir pour afficher l’original","Gedrückt halten: Original anzeigen"],"撤销 / 重做（参数和手动修补都可以）":["Undo / redo (works for settings and manual touch-ups)","元に戻す／やり直し（設定も手動修正も対象）","Отмена / повтор (параметры и ручная правка)","Deshacer / rehacer (ajustes y retoques manuales)","실행 취소 / 다시 실행 (설정과 수동 보정 모두)","撤銷 / 重做（參數和手動修補都可以）","Anular / refazer (definições e retoques manuais)","Annuler / rétablir (réglages et retouches manuelles)","Rückgängig / Wiederholen (Einstellungen und manuelle Korrekturen)"],"播放 / 暂停":["Play / pause","再生／一時停止","Воспроизведение / пауза","Reproducir / pausar","재생 / 일시정지","播放 / 暫停","Reproduzir / pausar","Lecture / pause","Wiedergabe / Pause"],"擦除 / 恢复 / 补色画笔":["Erase / restore / fill brush","消去／復元／補色ブラシ","Ластик / восстановление / заливка цветом","Borrar / restaurar / pincel de relleno","지우기 / 복원 / 색 채우기 브러시","擦除 / 恢復 / 補色畫筆","Apagar / restaurar / pincel de preenchimento","Gomme / restauration / pinceau de remplissage","Radieren / Wiederherstellen / Füllpinsel"],"放大 / 缩小 / 适应窗口":["Zoom in / out / fit","拡大／縮小／ウィンドウに合わせる","Увеличить / уменьшить / по размеру окна","Acercar / alejar / ajustar","확대 / 축소 / 창에 맞춤","放大 / 縮小 / 適應窗口","Ampliar / reduzir / ajustar","Zoom avant / arrière / ajuster","Vergrößern / Verkleinern / Einpassen"],"最多同时去掉 6 种背景色":["You can remove up to 6 background colours at once","背景色は最大 6 色まで同時に消せます","Можно удалить не более 6 цветов фона одновременно","Puedes quitar hasta 6 colores de fondo a la vez","배경색은 최대 6가지까지 동시에 지울 수 있어요","最多同時去掉 6 種背景色","Pode remover até 6 cores de fundo em simultâneo","Vous pouvez retirer jusqu’à 6 couleurs de fond à la fois","Es lassen sich höchstens 6 Hintergrundfarben gleichzeitig entfernen"],"最长边":["Longest side","長辺","Длинная сторона","Lado más largo","긴 변","最長邊","Lado mais longo","Plus grand côté","Längste Seite"],"最长边像素":["Longest side in pixels","長辺のピクセル数","Длинная сторона в пикселях","Lado más largo en píxeles","긴 변 픽셀 수","最長邊像素","Lado mais longo em píxeis","Plus grand côté en pixels","Längste Seite in Pixeln"],"框选裁剪区域":["Draw crop box","切り抜き範囲を選択","Выделить область обрезки","Marcar área de recorte","자르기 영역 지정","框選裁剪區域","Marcar área de recorte","Tracer la zone de recadrage","Zuschneidebereich aufziehen"],"检测到假透明棋盘格，已同时去掉两种底色":["Fake transparency checkerboard detected; both tile colours were removed","偽の透明（市松模様）を検出し、2色とも消しました","Обнаружена «ненастоящая» шашечная прозрачность; оба цвета клеток удалены","Se detectó un falso tablero de transparencia; se quitaron ambos colores","가짜 투명(체크무늬) 배경을 감지해 두 색을 모두 지웠습니다","檢測到假透明棋盤格，已同時去掉兩種底色","Foi detetado um xadrez de transparência falsa; as duas cores foram removidas","Faux damier de transparence détecté ; les deux couleurs ont été retirées","Falsches Transparenz-Schachbrett erkannt; beide Farben wurden entfernt"],"清除裁剪框":["Clear crop box","切り抜き範囲を解除","Сбросить рамку","Quitar recorte","자르기 영역 해제","清除裁剪框","Limpar recorte","Effacer le recadrage","Zuschnitt löschen"],"点击移除这个背景色":["Click to remove this background colour","クリックでこの背景色を解除","Нажмите, чтобы убрать этот цвет фона","Haz clic para quitar este color de fondo","클릭하면 이 배경색을 해제합니다","點擊移除這個背景色","Clique para remover esta cor de fundo","Cliquez pour retirer cette couleur de fond","Klicken, um diese Hintergrundfarbe zu entfernen"],"用周围的颜色把涂到的地方填上，适合补细缝":["Fill painted spots with the surrounding colour; good for closing thin gaps","塗った部分を周囲の色で埋めます。細い隙間の補修に","Закрашивает область окружающим цветом; удобно для тонких щелей","Rellena lo pintado con el color de alrededor; ideal para cerrar rendijas finas","칠한 곳을 주변 색으로 채웁니다. 가는 틈을 메울 때 좋아요","用周圍的顏色把塗到的地方填上，適合補細縫","Preenche a zona pintada com a cor em redor; ótimo para fechar frestas finas","Remplit la zone peinte avec la couleur voisine ; idéal pour boucher les fentes fines","Füllt die bemalte Stelle mit der Umgebungsfarbe; ideal für feine Spalten"],"画笔变小 / 变大":["Smaller / larger brush","ブラシを小さく／大きく","Кисть меньше / больше","Pincel más pequeño / grande","브러시 작게 / 크게","畫筆變小 / 變大","Pincel menor / maior","Pinceau plus petit / plus grand","Pinsel kleiner / größer"],"白色底":["White","白","Белый","Blanco","흰색","白色底","Branco","Blanc","Weiß"],"约 {0}":["≈ {0}","約 {0}","≈ {0}","≈ {0}","약 {0}","約 {0}","≈ {0}","≈ {0}","ca. {0}"],"终点=当前帧":["End = current frame","終点＝現在のフレーム","Конец = текущий кадр","Final = fotograma actual","끝 = 현재 프레임","終點=當前幀","Fim = fotograma atual","Fin = image actuelle","Ende = aktuelles Bild"],"自定义":["Custom","カスタム","Свой вариант","Personalizado","사용자 지정","自定義","Personalizado","Personnalisé","Benutzerdefiniert"],"补成正方形":["Pad to a square","正方形に整える","Дополнить до квадрата","Rellenar hasta cuadrado","정사각형으로 맞추기","補成正方形","Completar para quadrado","Compléter en carré","Zu Quadrat auffüllen"],"补色":["Fill","補色","Заливка","Relleno","색 채우기","補色","Preencher","Remplir","Füllen"],"起点=当前帧":["Start = current frame","始点＝現在のフレーム","Начало = текущий кадр","Inicio = fotograma actual","시작 = 현재 프레임","起點=當前幀","Início = fotograma atual","Début = image actuelle","Start = aktuelles Bild"],"追加吸管":["Add colour","色を追加","Добавить цвет","Añadir color","색상 추가","追加吸管","Adicionar cor","Ajouter une couleur","Farbe hinzufügen"],"退出当前工具":["Leave the current tool","現在のツールを終了","Выйти из инструмента","Salir de la herramienta actual","현재 도구 종료","退出當前工具","Sair da ferramenta atual","Quitter l’outil actuel","Aktuelles Werkzeug beenden"],"预混合底色":["Pre-blend colour","事前ブレンド色","Цвет подмешивания","Color de premezcla","사전 블렌딩 색","預混合底色","Cor de pré-mistura","Couleur de prémélange","Vormischfarbe"],"预设":["Preset","プリセット","Пресет","Preajuste","프리셋","預設","Predefinição","Préréglage","Voreinstellung"],"预设的数值仅供参考，各平台规则可能变化，请以平台最新要求为准。":["Preset values are only a guide; platform rules change, so check the latest requirements.","プリセットの数値は目安です。各サービスの規定は変わる可能性があるため、最新の要件をご確認ください。","Значения пресетов — лишь ориентир; правила платформ меняются, сверяйтесь с актуальными требованиями.","Los valores de los preajustes son orientativos; las reglas de cada plataforma cambian, consulta los requisitos más recientes.","프리셋 값은 참고용입니다. 플랫폼 규정은 바뀔 수 있으니 최신 요건을 확인하세요.","預設的數值僅供參考，各平台規則可能變化，請以平台最新要求為準。","Os valores das predefinições são apenas indicativos; as regras das plataformas mudam, confirme os requisitos mais recentes.","Les valeurs des préréglages sont indicatives ; les règles des plateformes évoluent, vérifiez les exigences les plus récentes.","Die Voreinstellungen sind nur Richtwerte; die Regeln der Plattformen ändern sich, bitte aktuelle Vorgaben prüfen."],"魔棒擦除 / 魔棒恢复":["Wand erase / wand restore","魔法の杖で消去／復元","Палочка: стереть / восстановить","Varita: borrar / restaurar","마법봉 지우기 / 복원","魔棒擦除 / 魔棒恢復","Varinha: apagar / restaurar","Baguette : effacer / restaurer","Zauberstab: Radieren / Wiederherstellen"],"黑色底":["Black","黒","Чёрный","Negro","검은색","黑色底","Preto","Noir","Schwarz"]};
 let LANG='zh-CN',infoState=null;
 function t(k){
   let s=k;
@@ -393,8 +458,8 @@ function pickLang(){
   try{const q=new URLSearchParams(location.search).get('lang');if(q&&LANGS.some(l=>l[0]===q))return q;}catch(e){}
   try{const v=localStorage.getItem('gif-cutout-lang');if(v&&LANGS.some(l=>l[0]===v))return v;}catch(e){}
   const list=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||'en'];
-  const map={zh:'zh-CN',en:'en',ja:'ja',ru:'ru',es:'es',ko:'ko'};
-  for(const x of list){const m=map[String(x).toLowerCase().slice(0,2)];if(m)return m;}
+  const map={zh:'zh-CN',en:'en',ja:'ja',ru:'ru',es:'es',ko:'ko',pt:'pt',fr:'fr',de:'de'};
+  for(const x of list){const l=String(x).toLowerCase();if(/^zh-(tw|hk|mo|hant)/.test(l))return 'zh-TW';const m=map[l.slice(0,2)];if(m)return m;}
   return 'en';
 }
 const attrOrig=new WeakMap();
@@ -428,8 +493,8 @@ function applyLang(lang,save){
   applyStatic();
   $('#lang').value=lang;
   $('#play').textContent=t(playing?'暂停':'播放');
-  renderInfo();
-  if(typeof setFmt==='function')setFmt(V.fmt);
+  renderInfo();renderBg();
+  if(typeof refreshFmtUI==='function')refreshFmtUI();
   if(G){
     strip.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.setAttribute('aria-label',t('保留第 {0} 帧',+cb.dataset.i+1)));
     readControls();draw();updateDock();
@@ -637,7 +702,8 @@ function lzwEncode(idx,minCode){
   if(nb>0)out.push(cur&255);
   return out.out();
 }
-function buildPalette(arrs,cut){
+function buildPalette(arrs,cut,maxN){
+  maxN=maxN||255;
   const cnt=new Uint32Array(32768),sr=new Float64Array(32768),sg=new Float64Array(32768),sb=new Float64Array(32768);
   let total=0;for(const a of arrs)total+=a.length>>2;
   const step=Math.max(1,Math.floor(total/300000));
@@ -662,12 +728,12 @@ function buildPalette(arrs,cut){
     return {list,tot,ax,range:rg[ax]};
   };
   let sampled=0;for(const k of bins)sampled+=cnt[k];
-  const anchors=bins.filter(k=>cnt[k]>sampled*0.004).sort((p,q)=>cnt[q]-cnt[p]).slice(0,24);
+  const anchors=bins.filter(k=>cnt[k]>sampled*0.004).sort((p,q)=>cnt[q]-cnt[p]).slice(0,Math.min(24,Math.max(1,maxN>>1)));
   const anchorSet=new Set(anchors);
   const rest=bins.filter(k=>!anchorSet.has(k));
   const pal=anchors.map(k=>[Math.round(sr[k]/cnt[k]),Math.round(sg[k]/cnt[k]),Math.round(sb[k]/cnt[k])]);
   if(!rest.length)return pal;
-  const limit=255-pal.length;
+  const limit=maxN-pal.length;
   let boxes=[mk(rest)];
   while(boxes.length<limit){
     let bi=-1,bs=0;
@@ -687,9 +753,9 @@ function buildPalette(arrs,cut){
   }
   return pal;
 }
-async function encodeGIF(frames,W,H,delaysMs,cut,dither,onProg){
+async function encodeGIF(frames,W,H,delaysMs,cut,dither,onProg,maxN){
   const uniq=[...new Set(frames)];
-  const pal=buildPalette(uniq,cut);
+  const pal=buildPalette(uniq,cut,maxN);
   const TR=255;
   const lut=new Int16Array(32768).fill(-1);
   const near=key=>{
@@ -760,11 +826,12 @@ function matte(src,W,H,P){
   const n=W*H;ensureBufs(n);
   const d=dBuf,st=stBuf,dep=depBuf,nf=nfBuf,q=qBuf,bl=blBuf;
   st.fill(0);
-  const br=P.bg[0],bg=P.bg[1],bb=P.bg[2],tol=P.tol;
+  const bgs=(P.bgs&&P.bgs.length)?P.bgs:[P.bg],nbg=bgs.length,tol=P.tol;
   for(let i=0,j=0;i<n;i++,j+=4){
     if(src[j+3]<=8){d[i]=0;continue;}
-    const dr=src[j]-br,dg=src[j+1]-bg,db=src[j+2]-bb;
-    d[i]=Math.sqrt((dr*dr+dg*dg+db*db)/3);
+    let best=1e9;
+    for(let b=0;b<nbg;b++){const c=bgs[b],dr=src[j]-c[0],dg=src[j+1]-c[1],db=src[j+2]-c[2],v=dr*dr+dg*dg+db*db;if(v<best)best=v;}
+    d[i]=Math.sqrt(best/3);
   }
   if(P.contiguous){
     /* 1. 穿透保护：先把候选背景腐蚀 k 圈，细线（宽度 ≤ 2k）会断开 */
@@ -879,6 +946,9 @@ function matte(src,W,H,P){
     for(let k=0;k<bc;k++){
       const p=bl[k],s=nf[p];if(s<0)continue;
       const j=p*4,sj=s*4;
+      let bi=0;
+      if(nbg>1){let bd=1e9;for(let b=0;b<nbg;b++){const c=bgs[b],dr=src[j]-c[0],dg=src[j+1]-c[1],db=src[j+2]-c[2],v=dr*dr+dg*dg+db*db;if(v<bd){bd=v;bi=b;}}}
+      const br=bgs[bi][0],bg=bgs[bi][1],bb=bgs[bi][2];
       const vr=src[sj]-br,vg=src[sj+1]-bg,vb=src[sj+2]-bb,dd=vr*vr+vg*vg+vb*vb;
       if(dd<48)continue;
       const cr=src[j],cg=src[j+1],cb=src[j+2];
@@ -943,11 +1013,27 @@ function closeGaps(out,W,H,r){
     }
   }
 }
-function applyManual(out,src,m,n){
+function applyManual(out,src,m,n,W){
+  let fillN=0;
   for(let i=0;i<n;i++){
     const v=m[i];if(!v)continue;const j=i*4;
     if(v===1)out[j+3]=0;
-    else{out[j]=src[j];out[j+1]=src[j+1];out[j+2]=src[j+2];out[j+3]=src[j+3]===0?0:255;}
+    else if(v===2){out[j]=src[j];out[j+1]=src[j+1];out[j+2]=src[j+2];out[j+3]=src[j+3]===0?0:255;}
+    else fillN++;
+  }
+  if(fillN)fillMarked(out,m,n,W);
+}
+/* 补色：被涂到的像素取最近的不透明像素的颜色，并设为不透明 */
+function fillMarked(out,m,n,W){
+  const q=new Int32Array(n),done=new Uint8Array(n);let qh=0,qt=0;
+  for(let i=0;i<n;i++){if(m[i]!==3&&out[i*4+3]>=128){done[i]=1;q[qt++]=i;}}
+  while(qh<qt){
+    const p=q[qh++],x=p%W;
+    const nb=[x>0?p-1:-1,x<W-1?p+1:-1,p>=W?p-W:-1,p<n-W?p+W:-1];
+    for(let k=0;k<4;k++){
+      const c=nb[k];if(c<0||done[c]||m[c]!==3)continue;
+      done[c]=1;out[c*4]=out[p*4];out[c*4+1]=out[p*4+1];out[c*4+2]=out[p*4+2];out[c*4+3]=255;q[qt++]=c;
+    }
   }
 }
 /* 调色与趣味效果（在抠完之后、描边之前） */
@@ -1061,13 +1147,28 @@ function composeLayers(res0,W,H,P){
 let G=null,keep=[],manual=[],manVer=[],cache=[],thumbVer=[],thumbs=[];
 let curRaw=0,pos=0,seq=[],playing=false,timer=0,ver=1,busy=false,lastSig='',warmTok=0,warmTimer=0,toastTimer=0,toastKind='',ctlQueued=false;
 const DEF={tol:14,band:2,decon:.9,shrink:0,guard:3,speck:4,close:0};
-const P={bg:[255,255,255],tol:14,band:2,decon:.9,shrink:0,guard:3,speck:4,close:0,contiguous:true,
+const P={bg:[255,255,255],bgs:[[255,255,255]],tol:14,band:2,decon:.9,shrink:0,guard:3,speck:4,close:0,contiguous:true,
   olW:0,olCol:[255,255,255],glowR:0,glowCol:[255,228,94],shMode:'none',shOff:6,shCol:[0,0,0],
   bri:0,sat:0,op:100,inv:false,rainbow:false,ghost:false};
-const V={pm:'fwd',thin:1,speed:1,zoom:'fit',view:'out',pbg:'checker',cmpPos:50,tool:'none',bsz:14,allF:false,pick:false,
+const V={fmts:['gif'],peek:false,zoomNum:1,pickAdd:false,pm:'fwd',thin:1,speed:1,zoom:'fit',view:'out',pbg:'checker',cmpPos:50,tool:'none',bsz:14,allF:false,pick:false,
   obg:'none',obg1:'#ffffff',obg2:'#cfe3ff',obgDir:'v',gta:128,dither:false,cols:0,fmt:'gif',xscale:1,pixel:false,crop:false,cropPad:2,wq:90};
 const toHex=c=>'#'+c.map(v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('');
 const fromHex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const REM_IDS=['fitMax','square','dedupe','gcol','gmat','gmatColor','tol','band','decon','shrink','guard','speck','close','mode','xscale','pixel','crop','cropPad','gta','dither','target','wq','cols'];
+const REM_KEY='gif-cutout-settings';
+function saveSettings(){
+  try{
+    const o={};REM_IDS.forEach(id=>{const el=document.getElementById(id);if(el)o[id]=el.type==='checkbox'?el.checked:el.value;});
+    o.fmts=V.fmts;o.v=2;localStorage.setItem(REM_KEY,JSON.stringify(o));
+  }catch(e){}
+}
+function loadSettings(){
+  try{
+    const o=JSON.parse(localStorage.getItem(REM_KEY)||'null');if(!o)return;
+    REM_IDS.forEach(id=>{const el=document.getElementById(id);if(!el||o[id]===undefined)return;if(el.type==='checkbox')el.checked=!!o[id];else el.value=o[id];});
+    if(Array.isArray(o.fmts)){const l=o.fmts.filter(f=>['gif','apng','webp','zip','sprite'].includes(f));if(l.length){V.fmts=l;V.fmt=l[0];}}
+  }catch(e){}
+}
 const FMT_LABEL={gif:'GIF',apng:'APNG',webp:'WebP',zip:'PNG 序列',sprite:'精灵图'};
 const FMT_HINT={
   gif:'GIF：兼容性最好，但透明只有「有」和「没有」两档，边缘会有一点锯齿。',
@@ -1087,7 +1188,7 @@ function say(t,ms,kind){
   el.textContent=t;el.hidden=false;
   if(ms!==0)toastTimer=setTimeout(()=>{el.hidden=true;toastKind='';},ms||4000);
 }
-const sayProgress=t=>say(t,0,'progress');
+const sayProgress=t=>{if(!quiet)say(t,0,'progress');};
 const clearProgress=()=>{if(toastKind==='progress')say('');};
 function fmtBytes(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(0)+' KB':(n/1048576).toFixed(2)+' MB';}
 
@@ -1097,7 +1198,7 @@ function processFrame(i){
   const out=matte(src,W,H,P);
   if(P.shrink>0)erode(out,W,H,P.shrink);
   if(P.close>0)closeGaps(out,W,H,P.close);
-  const m=manual[i];if(m)applyManual(out,src,m,W*H);
+  const m=manual[i];if(m)applyManual(out,src,m,W*H,W);
   adjustColors(out,P,i,G.frames.length);
   return composeLayers(out,W,H,P);
 }
@@ -1115,7 +1216,7 @@ function updateThumb(i){
   x.imageSmoothingQuality='high';x.drawImage(tmpC,(72-w)/2,(72-h)/2,w,h);
   thumbVer[i]=ver+':'+manVer[i];
 }
-function scheduleWarm(){clearTimeout(warmTimer);warmTimer=setTimeout(warm,120);}
+function scheduleWarm(){scheduleEstimate();clearTimeout(warmTimer);warmTimer=setTimeout(warm,120);}
 async function warm(){
   if(!G)return;
   const tok=++warmTok,n=G.frames.length,start=curRaw;let t0=performance.now();
@@ -1165,12 +1266,41 @@ function layout(){
   view.style.width=Math.round(PW*s)+'px';view.style.height=Math.round(PH*s)+'px';
   view.classList.toggle('pix',s>=2);
   const rs=V.bsz*s;ring.style.width=rs+'px';ring.style.height=rs+'px';
+  view.classList.toggle('pannable',V.tool==='none'&&!V.pick&&!V.cropTool&&(mat.scrollWidth>mat.clientWidth+1||mat.scrollHeight>mat.clientHeight+1));
 }
+function renderCropBox(){
+  const el=$('#cropBox'),r=V.cropRect;
+  if(!G||!r||inBatch){el.hidden=true;return;}
+  const pad=getProcessed(curRaw).pad;
+  el.hidden=false;
+  el.style.left=(r.x+pad)*scale+'px';el.style.top=(r.y+pad)*scale+'px';
+  el.style.width=Math.max(1,r.w*scale)+'px';el.style.height=Math.max(1,r.h*scale)+'px';
+}
+function setZoom(ns){
+  ns=clamp(ns,0.1,16);V.zoomNum=ns;V.zoom=ns;
+  const sel=$('#zoom'),o=sel.querySelector('option[value=z]');
+  o.textContent=Math.round(ns*100)+'%';o.hidden=false;sel.value='z';o.hidden=true;
+  layout();
+}
+function zoomAt(factor,cx,cy){
+  const r=view.getBoundingClientRect();
+  const fx=r.width?(cx-r.left)/r.width:0.5,fy=r.height?(cy-r.top)/r.height:0.5;
+  setZoom(scale*factor);
+  const r2=view.getBoundingClientRect();
+  mat.scrollLeft+=r2.left+fx*r2.width-cx;mat.scrollTop+=r2.top+fy*r2.height-cy;
+  layout();
+}
+mat.addEventListener('wheel',e=>{
+  if(!G||!(e.ctrlKey||e.metaKey))return;
+  e.preventDefault();
+  zoomAt(e.deltaY<0?1.12:1/1.12,e.clientX,e.clientY);
+},{passive:false});
+let panning=null,cropDrag=null;
 function draw(){
   if(!G)return;
   const pr=getProcessed(curRaw);
   if(cvOut.width!==pr.PW||cvOut.height!==pr.PH){cvOut.width=pr.PW;cvOut.height=pr.PH;cvOrig.width=pr.PW;cvOrig.height=pr.PH;layout();}
-  const v=V.view;
+  const v=V.peek?'orig':V.view;
   if(v==='alpha'){
     const a=new Uint8ClampedArray(pr.data.length);
     for(let i=0;i<pr.data.length;i+=4){const x=pr.data[i+3];a[i]=x;a[i+1]=x;a[i+2]=x;a[i+3]=255;}
@@ -1193,6 +1323,7 @@ function draw(){
   const th=strip.children[curRaw];
   if(th){th.classList.add('on');if(playing)strip.scrollLeft=th.offsetLeft-strip.clientWidth/2+36;}
   const sp=seq.indexOf(curRaw);scrub.value=sp<0?pos:sp;
+  renderCropBox();
 }
 
 /* ============ 时间轴 ============ */
@@ -1210,7 +1341,7 @@ function rebuildSeq(){
   const dis=seq.length===0||!G;
   $('#goExport').disabled=dis||busy;$('#play').disabled=dis;
   if(G&&seq.length===0){pause();say(t('至少要保留一帧'),3000);}
-  updateDock();
+  updateDock();scheduleEstimate();
 }
 function frameDelay(raw){return Math.max(20,Math.round(G.frames[raw].delay*V.thin/V.speed));}
 function tick(){
@@ -1224,18 +1355,35 @@ function pause(){playing=false;clearTimeout(timer);$('#play').textContent=t('播
 /* ============ 撤销 / 重做（笔刷） ============ */
 const hist={undo:[],redo:[],bytes:0};
 let strokeEntry=null;
-const entryBytes=e=>{let s=0;for(const m of e.values())if(m)s+=m.length;return s;};
+const entryBytes=e=>{if(e.ctl)return 0;let s=0;for(const m of e.values())if(m)s+=m.length;return s;};
 function snap(i){if(strokeEntry&&!strokeEntry.has(i)){const m=manual[i];strokeEntry.set(i,m?m.slice():null);}}
 function pushEntry(e){
-  if(!e||!e.size)return;
+  if(!e||(!e.ctl&&!e.size))return;
   hist.undo.push(e);hist.redo.length=0;
   hist.bytes=hist.undo.reduce((s,x)=>s+entryBytes(x),0);
   while(hist.undo.length>1&&(hist.undo.length>60||hist.bytes>160*1024*1024)){hist.undo.shift();hist.bytes=hist.undo.reduce((s,x)=>s+entryBytes(x),0);}
   updateHistBtns();
 }
+const CTL_SKIP=new Set(['bsz','wtol','wgrow','wcontig','allF']);
+function snapCtl(){
+  const o={};
+  document.querySelectorAll('.panel input[id],.panel select[id]').forEach(el=>{if(!CTL_SKIP.has(el.id))o[el.id]=el.type==='checkbox'?el.checked:el.value;});
+  return {ids:o,bgs:bgList.map(c=>c.slice())};
+}
+let ctlSnap=null;
+function commitCtl(){
+  if(!ctlSnap||!G)return;
+  const n=snapCtl();if(JSON.stringify(n)===JSON.stringify(ctlSnap))return;
+  pushEntry({ctl:ctlSnap});ctlSnap=n;saveSettings();
+}
+function applyCtl(sn){
+  for(const id in sn.ids){const el=document.getElementById(id);if(!el)continue;if(el.type==='checkbox')el.checked=sn.ids[id];else el.value=sn.ids[id];}
+  setBgList(sn.bgs);ctlSnap=sn;onControl();saveSettings();
+}
 function updateHistBtns(){$('#undo').disabled=!hist.undo.length;$('#redo').disabled=!hist.redo.length;}
 function stepHistory(from,to){
   const e=from.pop();if(!e||!G)return;
+  if(e.ctl){to.push({ctl:snapCtl()});applyCtl(e.ctl);updateHistBtns();return;}
   const inv=new Map();
   for(const [i,m] of e){inv.set(i,manual[i]);manual[i]=m;manVer[i]++;}
   to.push(inv);updateHistBtns();draw();scheduleWarm();
@@ -1254,22 +1402,77 @@ function detectBg(fr,W,H){
   let best=null;for(const e of hist2.values())if(!best||e[0]>best[0])best=e;
   return best?[Math.round(best[1]/best[0]),Math.round(best[2]/best[0]),Math.round(best[3]/best[0])]:[255,255,255];
 }
-function setBg(rgb){P.bg=rgb.slice();$('#bgColor').value=toHex(rgb);$('#bgHex').textContent=toHex(rgb).toUpperCase();}
+/* 假透明棋盘格：第一行是 A、B 两色等宽交替，并且纵向也交替 */
+function detectChecker(fr,W,H){
+  if(W<24||H<24)return null;
+  const px=(x,y)=>{const i=(y*W+x)*4;return fr[i+3]<200?null:[fr[i],fr[i+1],fr[i+2]];};
+  const same=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<=12&&Math.abs(a[1]-b[1])<=12&&Math.abs(a[2]-b[2])<=12;
+  const gray=c=>Math.abs(c[0]-c[1])<=12&&Math.abs(c[1]-c[2])<=12;
+  const runs=[];let x=0;
+  while(x<W&&runs.length<12){
+    const c=px(x,0);if(!c)return null;
+    let e=x+1;while(e<W&&same(px(e,0),c))e++;
+    runs.push({c:c,len:e-x});x=e;
+  }
+  if(runs.length<5)return null;
+  const s=runs[1].len;
+  if(s<3||s>80)return null;
+  for(let i=1;i<runs.length-1;i++)if(runs[i].len!==s)return null;
+  if(runs[0].len>s)return null;
+  const A=runs[1].c,B=runs[2].c;
+  if(same(A,B)||!gray(A)||!gray(B))return null;
+  for(let i=1;i<runs.length-1;i++)if(!same(runs[i].c,i%2?A:B))return null;
+  // 纵向：同一列往下，在不超过一个格子的距离内应当翻转成另一种颜色
+  const x0=runs[0].len+Math.floor(s/2),c0=px(x0,0);
+  if(!c0)return null;
+  let y1=1;while(y1<H&&same(px(x0,y1),c0))y1++;
+  if(y1>s||y1>=H)return null;
+  const c1=px(x0,y1);
+  if(!c1||same(c1,c0)||!(same(c1,A)||same(c1,B)))return null;
+  return [A.slice(),B.slice()];
+}
+function autoBg(fr,W,H){
+  const ck=detectChecker(fr,W,H);
+  if(ck)return {list:ck,checker:true};
+  return {list:[detectBg(fr,W,H)],checker:false};
+}
+let bgList=[[255,255,255]];
+function hexList(){return bgList.map(c=>toHex(c).toUpperCase()).join(' ');}
+function renderBg(){
+  $('#bgColor').value=toHex(bgList[0]);
+  $('#bgHex').textContent=hexList();
+  const box=$('#bgChips');box.innerHTML='';
+  box.hidden=bgList.length<2;
+  bgList.forEach((c,i)=>{
+    const b=document.createElement('button');b.type='button';b.className='sw';b.style.background=toHex(c);
+    b.title=t('点击移除这个背景色');b.setAttribute('aria-label',toHex(c).toUpperCase()+' '+t('点击移除这个背景色'));b.dataset.i=i;box.appendChild(b);
+  });
+}
+function setBgList(list){
+  bgList=list.map(c=>c.slice());P.bg=bgList[0].slice();P.bgs=bgList.map(c=>c.slice());renderBg();
+}
+function setBg(rgb){setBgList([rgb]);}
+function addBg(rgb){
+  if(bgList.length>=6){say(t('最多同时去掉 6 种背景色'),3000);return;}
+  if(bgList.some(c=>Math.abs(c[0]-rgb[0])+Math.abs(c[1]-rgb[1])+Math.abs(c[2]-rgb[2])<6))return;
+  setBgList(bgList.concat([rgb]));
+}
 function installGif(g,name){
   pause();warmTok++;
   G={name:name,W:g.W,H:g.H,frames:g.frames,loop:g.loop};
   const n=g.frames.length;
   keep=new Array(n).fill(true);manual=new Array(n).fill(null);manVer=new Array(n).fill(0);cache=[];thumbVer=[];
   hist.undo.length=0;hist.redo.length=0;hist.bytes=0;updateHistBtns();
-  curRaw=0;pos=0;ver++;
-  setBg(detectBg(g.frames[0].data,g.W,g.H));
-  readControls();lastSig=JSON.stringify(P);
+  curRaw=0;pos=0;ver++;V.cropRect=null;V.cropTool=false;V.est=null;$('#cropBtn').setAttribute('aria-pressed','false');view.classList.remove('cropmode');
+  const ab=autoBg(g.frames[0].data,g.W,g.H);setBgList(ab.list);
+  readControls();lastSig=JSON.stringify(P);ctlSnap=snapCtl();
   buildStrip();rebuildSeq();
   cvOut.width=0;draw();layout();
   const total=g.frames.reduce((s,f)=>s+f.delay,0);
   infoState={name:name,W:g.W,H:g.H,n:n,total:total};renderInfo();
   scrub.hidden=n<2;
   say(g.note||'');
+  if(ab.checker)say(t('检测到假透明棋盘格，已同时去掉两种底色'),6000);
   play();scheduleWarm();
 }
 function loadBytes(buf,name){
@@ -1326,7 +1529,7 @@ async function makeSample(dark){
 
 /* ============ 控件 ============ */
 function readControls(){
-  P.bg=fromHex($('#bgColor').value);
+  bgList[0]=fromHex($('#bgColor').value);P.bg=bgList[0].slice();P.bgs=bgList.map(c=>c.slice());
   P.tol=+$('#tol').value;P.band=+$('#band').value;P.decon=+$('#decon').value/100;P.shrink=+$('#shrink').value;
   P.guard=+$('#guard').value;P.speck=+$('#speck').value;P.close=+$('#close').value;
   P.contiguous=$('#mode').value==='edge';
@@ -1335,11 +1538,11 @@ function readControls(){
   P.shMode=$('#shMode').value;P.shOff=+$('#shOff').value;P.shCol=fromHex($('#shColor').value);
   P.bri=+$('#bri').value;P.sat=+$('#sat').value;P.op=+$('#op').value;
   P.inv=$('#fxInv').checked;P.rainbow=$('#fxRainbow').checked;P.ghost=$('#fxGhost').checked;
-  V.pm=$('#pm').value;V.thin=+$('#thin').value;V.speed=+$('#speed').value;V.zoom=$('#zoom').value;
+  V.pm=$('#pm').value;V.thin=+$('#thin').value;V.speed=+$('#speed').value;V.zoom=$('#zoom').value;if(V.zoom==='z')V.zoom=V.zoomNum||1;
   V.cmpPos=+$('#cmpPos').value;V.bsz=+$('#bsz').value;V.allF=$('#allF').checked;V.wtol=+$('#wtol').value;V.wgrow=+$('#wgrow').value;V.wcontig=$('#wcontig').checked;
   V.obg=$('#obg').value;V.obg1=$('#obg1').value;V.obg2=$('#obg2').value;V.obgDir=$('#obgDir').value;
   V.gta=+$('#gta').value;V.dither=$('#dither').checked;V.cols=Math.max(0,Math.min(64,parseInt($('#cols').value)||0));
-  V.xscale=+$('#xscale').value;V.target=Math.max(0,parseFloat($('#target').value)||0);V.pixel=$('#pixel').checked;V.crop=$('#crop').checked;
+  V.xscale=+$('#xscale').value;V.fitMax=Math.max(0,Math.min(4096,parseInt($('#fitMax').value)||0));V.square=$('#square').checked;V.dedupe=$('#dedupe').checked;V.gcol=+$('#gcol').value;V.gmat=$('#gmat').value;V.gmatC=V.gmat==='white'?[255,255,255]:V.gmat==='black'?[0,0,0]:V.gmat==='custom'?fromHex($('#gmatColor').value):null;V.target=Math.max(0,parseFloat($('#target').value)||0);V.pixel=$('#pixel').checked;V.crop=$('#crop').checked;
   V.cropPad=Math.max(0,Math.min(64,parseInt($('#cropPad').value)||0));V.wq=+$('#wq').value;
   const set=(id,t)=>{$('#'+id).textContent=t;};
   set('tolV',P.tol);set('bandV',P.band);set('deconV',Math.round(P.decon*100));set('shrinkV',P.shrink);
@@ -1348,6 +1551,7 @@ function readControls(){
   set('speedV',V.speed.toFixed(2)+'×');set('gtaV',V.gta);set('wqV',V.wq===100?t('无损'):V.wq);
   set('bgHex',toHex(P.bg).toUpperCase());
   $('#guard').disabled=!P.contiguous;
+  $('#xscale').disabled=V.fitMax>0;$('#crop').disabled=!!V.cropRect;$('#gmatColor').hidden=V.gmat!=='custom';
   $('#obgBox').hidden=V.obg==='none';$('#obg2').hidden=V.obg!=='grad';$('#obgDir').hidden=V.obg!=='grad';
   $('#cmpPos').hidden=V.view!=='cmp';
 }
@@ -1364,7 +1568,7 @@ function queueControl(){
   requestAnimationFrame(()=>{ctlQueued=false;onControl();});
 }
 $('.grid').addEventListener('input',e=>{if(e.target.closest('.strip'))return;queueControl();});
-$('.grid').addEventListener('change',e=>{if(e.target.closest('.strip'))return;queueControl();});
+$('.grid').addEventListener('change',e=>{if(e.target.closest('.strip'))return;queueControl();commitCtl();saveSettings();});
 
 function resetParams(){
   for(const k of Object.keys(DEF)){$('#'+k).value=k==='decon'?Math.round(DEF[k]*100):DEF[k];}
@@ -1374,15 +1578,23 @@ function resetParams(){
   $('#shMode').value='none';$('#shOff').value=6;$('#shColor').value='#000000';
   $('#bri').value=0;$('#sat').value=0;$('#op').value=100;
   $('#fxInv').checked=false;$('#fxRainbow').checked=false;$('#fxGhost').checked=false;
-  if(G)setBg(detectBg(G.frames[curRaw].data,G.W,G.H));
-  onControl();say(t('已恢复默认参数'),2000);
+  if(G)setBgList(autoBg(G.frames[curRaw].data,G.W,G.H).list);
+  onControl();commitCtl();say(t('已恢复默认参数'),2000);
 }
 $('#resetP').onclick=resetParams;
-$('#bgAuto').onclick=()=>{if(G){setBg(detectBg(G.frames[curRaw].data,G.W,G.H));onControl();}};
-$('#bgW').onclick=()=>{setBg([255,255,255]);onControl();};
-$('#bgB').onclick=()=>{setBg([0,0,0]);onControl();};
+$('#bgAuto').onclick=()=>{if(G){const ab=autoBg(G.frames[curRaw].data,G.W,G.H);setBgList(ab.list);onControl();commitCtl();if(ab.checker)say(t('检测到假透明棋盘格，已同时去掉两种底色'),5000);}};
+$('#bgW').onclick=()=>{setBg([255,255,255]);onControl();commitCtl();};
+$('#bgB').onclick=()=>{setBg([0,0,0]);onControl();commitCtl();};
+$('#bgChips').addEventListener('click',e=>{
+  const b=e.target.closest('.sw');if(!b||bgList.length<2)return;
+  const l=bgList.slice();l.splice(+b.dataset.i,1);setBgList(l);onControl();commitCtl();
+});
+$('#pickAdd').onclick=()=>{
+  V.pick=!V.pick;V.pickAdd=V.pick;$('#pickAdd').setAttribute('aria-pressed',V.pick);$('#pick').setAttribute('aria-pressed','false');view.classList.toggle('pickmode',V.pick);
+  if(V.pick)say(t('再点一种背景色，和已有的一起去掉'),3000);
+};
 $('#pick').onclick=()=>{
-  V.pick=!V.pick;$('#pick').setAttribute('aria-pressed',V.pick);view.classList.toggle('pickmode',V.pick);
+  V.pick=!V.pick;V.pickAdd=false;$('#pickAdd').setAttribute('aria-pressed','false');$('#pick').setAttribute('aria-pressed',V.pick);view.classList.toggle('pickmode',V.pick);
   if(V.pick)say(t('在预览图上点一下要去掉的背景色'),3000);
 };
 document.querySelectorAll('[data-bg]').forEach(b=>b.onclick=()=>{
@@ -1396,7 +1608,7 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{
   V.tool=b.dataset.tool;document.querySelectorAll('[data-tool]').forEach(x=>x.setAttribute('aria-pressed',x===b));
   const isWand=V.tool==='wandE'||V.tool==='wandR';
-  view.classList.toggle('brush',V.tool==='erase'||V.tool==='restore');view.classList.toggle('wandmode',isWand);ring.hidden=true;
+  view.classList.toggle('brush',isBrushTool());view.classList.toggle('wandmode',isWand);ring.hidden=true;
   if(isWand)say(t('在预览图上点一下要处理的色块'),3000);
   if(V.tool!=='none'&&V.view==='orig'){document.querySelector('[data-view="out"]').click();}
 });
@@ -1423,20 +1635,60 @@ strip.addEventListener('change',e=>{
   rebuildSeq();draw();
 });
 document.addEventListener('keydown',e=>{
-  const t=e.target;if(t&&/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)&&t.type!=='range'&&t.type!=='checkbox')return;
+  const tg=e.target;if(tg&&/^(INPUT|SELECT|TEXTAREA)$/.test(tg.tagName)&&tg.type!=='range'&&tg.type!=='checkbox')return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();stepHistory(e.shiftKey?hist.redo:hist.undo,e.shiftKey?hist.undo:hist.redo);return;}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();stepHistory(hist.redo,hist.undo);return;}
-  if(t&&t.tagName==='BUTTON')return;
-  if(e.key==='o'||e.key==='O'){$('#file').click();return;}
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(tg&&tg.tagName==='BUTTON'&&e.key===' ')return;
+  const k=e.key.length===1?e.key.toLowerCase():e.key;
+  if(k==='o'){$('#file').click();return;}
   if(!G)return;
-  if(e.key===' '){e.preventDefault();playing?pause():play();}
-  else if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+  const tool=n=>{const b=document.querySelector('[data-tool='+n+']');if(b)b.click();};
+  if(k===' '){e.preventDefault();playing?pause():play();}
+  else if(k==='ArrowRight'||k==='ArrowLeft'){
     e.preventDefault();pause();if(!seq.length)return;
-    pos=(pos+(e.key==='ArrowRight'?1:-1)+seq.length)%seq.length;curRaw=seq[pos];draw();
+    pos=(pos+(k==='ArrowRight'?1:-1)+seq.length)%seq.length;curRaw=seq[pos];draw();
   }
+  else if(k==='e')tool('erase');
+  else if(k==='r')tool('restore');
+  else if(k==='f')tool('fill');
+  else if(k==='w')tool('wandE');
+  else if(k==='q')tool('wandR');
+  else if(k==='i')$('#pick').click();
+  else if(k==='Escape'){tool('none');if(V.pick)$('#pick').click();if(V.cropTool)setCropTool(false);}
+  else if(k==='['||k===']'){const el=$('#bsz');el.value=clamp(+el.value+(k===']'?2:-2),+el.min,+el.max);queueControl();}
+  else if(k==='+'||k==='='){const r=mat.getBoundingClientRect();zoomAt(1.25,r.left+r.width/2,r.top+r.height/2);}
+  else if(k==='-'){const r=mat.getBoundingClientRect();zoomAt(1/1.25,r.left+r.width/2,r.top+r.height/2);}
+  else if(k==='0'){$('#zoom').value='fit';queueControl();}
+  else if(k==='c'&&!e.repeat){V.peek=true;draw();}
 });
+document.addEventListener('keyup',e=>{if(e.key.toLowerCase()==='c'&&V.peek){V.peek=false;draw();}});
+window.addEventListener('blur',()=>{if(V.peek){V.peek=false;draw();}});
+function syncKeepUI(){
+  strip.querySelectorAll('.th').forEach((el,i)=>{const cb=el.querySelector('input');if(cb)cb.checked=keep[i];el.classList.toggle('off',!keep[i]);});
+  rebuildSeq();draw();
+}
+$('#keepFrom').onclick=()=>{if(!G)return;for(let i=0;i<curRaw;i++)keep[i]=false;keep[curRaw]=true;syncKeepUI();};
+$('#keepTo').onclick=()=>{if(!G)return;for(let i=curRaw+1;i<keep.length;i++)keep[i]=false;keep[curRaw]=true;syncKeepUI();};
+$('#keepAll').onclick=()=>{if(!G)return;keep.fill(true);syncKeepUI();};
+$('#copyPng').onclick=async()=>{
+  if(!G||!seq.length)return;
+  try{
+    const blob=await toBlob(finalCanvas(curRaw,makePlan()));
+    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+    say(t('已复制当前帧（透明 PNG）'),2500);
+  }catch(e){say(t('复制失败：这个环境不允许写入剪贴板'),4000);}
+};
 
+function setCropTool(on){
+  V.cropTool=on;$('#cropBtn').setAttribute('aria-pressed',on);view.classList.toggle('cropmode',on);
+  if(on){V.pick=false;view.classList.remove('pickmode');$('#pick').setAttribute('aria-pressed','false');$('#pickAdd').setAttribute('aria-pressed','false');const n=document.querySelector('[data-tool=none]');if(n)n.click();say(t('在预览图上拖出要保留的区域'),3500);}
+  layout();
+}
+$('#cropBtn').onclick=()=>{if(!G)return;setCropTool(!V.cropTool);};
+$('#cropClr').onclick=()=>{V.cropRect=null;setCropTool(false);renderCropBox();onControl();scheduleEstimate();};
 /* 笔刷与吸管 */
+function isBrushTool(){return V.tool==='erase'||V.tool==='restore'||V.tool==='fill';}
 let painting=false,last=null;
 function srcPoint(e){
   const r=cvOut.getBoundingClientRect(),pad=getProcessed(curRaw).pad;
@@ -1450,7 +1702,7 @@ function stamp(i,cx,cy,r,val){
   manVer[i]++;
 }
 function paintTo(pt){
-  const r=V.bsz/2,val=V.tool==='erase'?1:2;
+  const r=V.bsz/2,val=V.tool==='erase'?1:V.tool==='fill'?3:2;
   const from=last||pt,dx=pt.x-from.x,dy=pt.y-from.y,dist=Math.hypot(dx,dy),steps=Math.max(1,Math.ceil(dist/Math.max(1,r/2)));
   for(let s=1;s<=steps;s++){
     const x=from.x+dx*s/steps,y=from.y+dy*s/steps;
@@ -1460,33 +1712,67 @@ function paintTo(pt){
 }
 cvOut.addEventListener('pointerdown',e=>{
   if(!G)return;
+  if(V.cropTool){e.preventDefault();pause();const p=srcPoint(e);cropDrag={x:p.x,y:p.y};V.cropRect={x:p.x,y:p.y,w:0,h:0};cvOut.setPointerCapture(e.pointerId);renderCropBox();return;}
   if(V.pick){
     const p=srcPoint(e),x=Math.floor(p.x),y=Math.floor(p.y);
-    if(x>=0&&y>=0&&x<G.W&&y<G.H){const f=G.frames[curRaw].data,k=(y*G.W+x)*4;if(f[k+3]>8){setBg([f[k],f[k+1],f[k+2]]);}}
-    V.pick=false;$('#pick').setAttribute('aria-pressed','false');view.classList.remove('pickmode');onControl();return;
+    if(x>=0&&y>=0&&x<G.W&&y<G.H){const f=G.frames[curRaw].data,k=(y*G.W+x)*4;if(f[k+3]>8){V.pickAdd?addBg([f[k],f[k+1],f[k+2]]):setBg([f[k],f[k+1],f[k+2]]);}}
+    V.pick=false;V.pickAdd=false;$('#pick').setAttribute('aria-pressed','false');$('#pickAdd').setAttribute('aria-pressed','false');view.classList.remove('pickmode');onControl();commitCtl();return;
   }
-  if(V.tool==='none')return;
+  if(V.tool==='none'){
+    if(view.classList.contains('pannable')){panning={x:e.clientX,y:e.clientY,l:mat.scrollLeft,t:mat.scrollTop};cvOut.setPointerCapture(e.pointerId);view.classList.add('grabbing');}
+    return;
+  }
   if(V.tool==='wandE'||V.tool==='wandR'){e.preventDefault();pause();wandAt(srcPoint(e),V.tool==='wandE'?1:2);return;}
   e.preventDefault();pause();painting=true;last=null;strokeEntry=new Map();
   cvOut.setPointerCapture(e.pointerId);paintTo(srcPoint(e));
 });
 cvOut.addEventListener('pointermove',e=>{
-  if(V.tool==='erase'||V.tool==='restore'){
+  if(panning){mat.scrollLeft=panning.l-(e.clientX-panning.x);mat.scrollTop=panning.t-(e.clientY-panning.y);return;}
+  if(cropDrag){const p=srcPoint(e);V.cropRect={x:Math.min(cropDrag.x,p.x),y:Math.min(cropDrag.y,p.y),w:Math.abs(p.x-cropDrag.x),h:Math.abs(p.y-cropDrag.y)};renderCropBox();return;}
+  if(isBrushTool()){
     const vr=view.getBoundingClientRect();ring.hidden=false;ring.style.left=(e.clientX-vr.left)+'px';ring.style.top=(e.clientY-vr.top)+'px';
   }
   if(painting)paintTo(srcPoint(e));
 });
-const endPaint=()=>{if(painting){painting=false;last=null;pushEntry(strokeEntry);strokeEntry=null;scheduleWarm();}};
+const endPaint=()=>{if(panning){panning=null;view.classList.remove('grabbing');}
+  if(cropDrag){
+    cropDrag=null;
+    if(!V.cropRect||V.cropRect.w<4||V.cropRect.h<4)V.cropRect=null;
+    setCropTool(false);onControl();scheduleEstimate();
+  }
+  if(painting){painting=false;last=null;pushEntry(strokeEntry);strokeEntry=null;scheduleWarm();}};
 cvOut.addEventListener('pointerup',endPaint);cvOut.addEventListener('pointercancel',endPaint);
 cvOut.addEventListener('pointerleave',()=>{ring.hidden=true;});
 
 /* 魔棒：按源图颜色选出一块，写入手动蒙版 */
-function wandRegion(i,sx,sy,seed){
+let wandCnt=0;
+function wandRegion(i,sx,sy,seed,A0){
   const W=G.W,H=G.H,n=W*H,f=G.frames[i].data,t2=V.wtol*V.wtol*3;
   const near=k=>{const j=k*4;if(f[j+3]<=8)return false;const dr=f[j]-seed[0],dg=f[j+1]-seed[1],db=f[j+2]-seed[2];return dr*dr+dg*dg+db*db<=t2;};
   const reg=new Uint8Array(n);let cnt=0;
   if(V.wcontig){
-    const k0=sy*W+sx;if(!near(k0))return null;
+    let k0=sy*W+sx;
+    if(!near(k0)){
+      if(!V.allF||i===curRaw||!A0)return null;
+      /* 跟踪：在整帧里找所有同色连通块，挑面积最接近当前帧所选块的那一个 */
+      let best=-1,bestScore=1e9;const seen=new Uint8Array(n),st2=new Int32Array(n);
+      for(let p0=0;p0<n;p0++){
+        if(seen[p0]||!near(p0))continue;
+        let sp=0,area=0,sxs=0,sys=0;seen[p0]=1;st2[sp++]=p0;
+        while(sp>0){
+          const k=st2[--sp],x=k%W;area++;sxs+=x;sys+=(k-x)/W;
+          if(x>0&&!seen[k-1]&&near(k-1)){seen[k-1]=1;st2[sp++]=k-1;}
+          if(x<W-1&&!seen[k+1]&&near(k+1)){seen[k+1]=1;st2[sp++]=k+1;}
+          if(k>=W&&!seen[k-W]&&near(k-W)){seen[k-W]=1;st2[sp++]=k-W;}
+          if(k<n-W&&!seen[k+W]&&near(k+W)){seen[k+W]=1;st2[sp++]=k+W;}
+        }
+        if(area<3)continue;
+        const score=Math.abs(Math.log(area/A0))+Math.hypot(sxs/area-sx,sys/area-sy)/Math.max(W,H)*0.5;
+        if(score<bestScore){bestScore=score;best=p0;}
+      }
+      if(best<0||bestScore>1.2)return null;
+      k0=best;
+    }
     const st=new Int32Array(n);let sp=0;reg[k0]=1;st[sp++]=k0;cnt=1;
     while(sp>0){
       const k=st[--sp],x=k%W;
@@ -1497,6 +1783,7 @@ function wandRegion(i,sx,sy,seed){
     }
   }else{for(let k=0;k<n;k++)if(near(k)){reg[k]=1;cnt++;}}
   if(!cnt)return null;
+  wandCnt=cnt;
   for(let s=0;s<V.wgrow;s++){
     const add=[];
     for(let k=0;k<n;k++){
@@ -1514,9 +1801,11 @@ function wandAt(pt,val){
   if(f0[k+3]<=8){say(t('点到的是已经透明的地方'),2500);return;}
   const seed=[f0[k],f0[k+1],f0[k+2]];
   strokeEntry=new Map();let hit=0;
-  const frames=V.allF?G.frames.map((_,i)=>i):[curRaw];
+  const frames=V.allF?[curRaw].concat(G.frames.map((_,i)=>i).filter(i=>i!==curRaw)):[curRaw];
+  let A0=0;
   for(const i of frames){
-    const reg=wandRegion(i,sx,sy,seed);if(!reg)continue;
+    const reg=wandRegion(i,sx,sy,seed,A0);if(!reg)continue;
+    if(i===curRaw)A0=wandCnt;
     snap(i);let m=manual[i];if(!m){m=new Uint8Array(W*H);manual[i]=m;}
     for(let q=0;q<reg.length;q++)if(reg[q])m[q]=val;
     manVer[i]++;hit++;
@@ -1551,11 +1840,17 @@ document.addEventListener('paste',e=>{
 new ResizeObserver(()=>{layout();updateDockPad();}).observe(mat);
 
 /* ============ 导出 ============ */
+let inBatch=false;
 function makePlan(sOver){
   const list=[...new Set(seq)];
   const p0=getProcessed(list[0]);
   let cx=0,cy=0,cw=p0.PW,ch=p0.PH;
-  if(V.crop){
+  if(V.cropRect&&!inBatch){
+    const r=V.cropRect,pd=p0.pad;
+    const x0=clamp(Math.round(r.x+pd),0,p0.PW-1),y0=clamp(Math.round(r.y+pd),0,p0.PH-1);
+    const x1=clamp(Math.round(r.x+r.w+pd),x0+1,p0.PW),y1=clamp(Math.round(r.y+r.h+pd),y0+1,p0.PH);
+    cx=x0;cy=y0;cw=x1-x0;ch=y1-y0;
+  }else if(V.crop){
     let x0=1e9,y0=1e9,x1=-1,y1=-1;
     for(const raw of list){
       const pr=getProcessed(raw),d=pr.data,W=pr.PW,H=pr.PH;
@@ -1570,17 +1865,29 @@ function makePlan(sOver){
       cw=Math.min(p0.PW,x1+1+pd)-cx;ch=Math.min(p0.PH,y1+1+pd)-cy;
     }
   }
-  const s=sOver||V.xscale;
-  const W=Math.max(1,Math.round(cw*s)),H=Math.max(1,Math.round(ch*s));
-  return {cx,cy,cw,ch,W,H,s,identity:cx===0&&cy===0&&cw===p0.PW&&ch===p0.PH&&s===1&&V.obg==='none'};
+  let fw=cw,fh=ch,ox=0,oy=0;
+  if(V.square&&cw!==ch){const m=Math.max(cw,ch);fw=m;fh=m;ox=(m-cw)/2;oy=(m-ch)/2;}
+  const s=sOver||(V.fitMax>0?V.fitMax/Math.max(fw,fh):V.xscale);
+  const W=Math.max(1,Math.round(fw*s)),H=Math.max(1,Math.round(fh*s));
+  return {cx,cy,cw,ch,fw,fh,ox,oy,W,H,s,identity:cx===0&&cy===0&&cw===p0.PW&&ch===p0.PH&&ox===0&&oy===0&&s===1&&V.obg==='none'};
+}
+/* 不扫描所有帧的轻量估算，用于底部信息栏 */
+function approxDims(){
+  const pr=cache[curRaw]&&cache[curRaw].ver===ver?cache[curRaw]:null;
+  let w=pr?pr.PW:G.W,h=pr?pr.PH:G.H;
+  if(V.cropRect&&!inBatch){w=Math.max(1,Math.round(V.cropRect.w));h=Math.max(1,Math.round(V.cropRect.h));}
+  if(V.square){w=h=Math.max(w,h);}
+  const s=V.fitMax>0?V.fitMax/Math.max(w,h):V.xscale;
+  return [Math.max(1,Math.round(w*s)),Math.max(1,Math.round(h*s))];
 }
 function updateDock(){
   const info=$('#dockInfo');
   if(!G||!seq.length){info.textContent='';return;}
-  const pr=cache[curRaw]&&cache[curRaw].ver===ver?cache[curRaw]:null;
-  const w=pr?pr.PW:G.W,h=pr?pr.PH:G.H;
+  const d=approxDims();
   let ms=0;for(const r of seq)ms+=frameDelay(r);
-  info.textContent=t('输出 {0}×{1}{2} · {3} 帧 · {4} 秒',Math.round(w*V.xscale),Math.round(h*V.xscale),V.crop?t('（裁边前）'):'',seq.length,(ms/1000).toFixed(2));
+  let txt=t('输出 {0}×{1}{2} · {3} 帧 · {4} 秒',d[0],d[1],V.crop&&!V.cropRect?t('（裁边前）'):'',seq.length,(ms/1000).toFixed(2));
+  if(V.est)txt+=' · '+t('约 {0}',fmtBytes(Math.round(V.est)));
+  info.textContent=txt;
 }
 function updateDockPad(){
   const h=$('#dock').offsetHeight||110;
@@ -1597,7 +1904,8 @@ function finalCanvas(raw,plan){
   if(V.obg!=='none'){x.fillStyle=V.obg==='solid'?V.obg1:makeGrad(x,plan.W,plan.H);x.fillRect(0,0,plan.W,plan.H);}
   tmpC.width=pr.PW;tmpC.height=pr.PH;tmpX.putImageData(new ImageData(pr.data,pr.PW,pr.PH),0,0);
   x.imageSmoothingEnabled=!V.pixel;x.imageSmoothingQuality='high';
-  x.drawImage(tmpC,plan.cx,plan.cy,plan.cw,plan.ch,0,0,plan.W,plan.H);
+  if(plan.ox||plan.oy)x.drawImage(tmpC,plan.cx,plan.cy,plan.cw,plan.ch,plan.ox*plan.s,plan.oy*plan.s,plan.cw*plan.s,plan.ch*plan.s);
+  else x.drawImage(tmpC,plan.cx,plan.cy,plan.cw,plan.ch,0,0,plan.W,plan.H);
   return c;
 }
 function finalRGBA(raw,plan){
@@ -1607,6 +1915,22 @@ function finalRGBA(raw,plan){
 const toBlob=(c,type,q)=>new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error(t('图片编码失败'))),type||'image/png',q));
 function baseName(){return (G.name||t('动图')).replace(/\.[a-z0-9]+$/i,'').replace(/[^\p{L}\p{N}_\-]+/gu,'_').slice(0,60)||t('动图');}
 function exportList(){return seq.map(raw=>({raw:raw,ms:frameDelay(raw)}));}
+function sameFrame(a,b){
+  if(a===b)return true;
+  const x=new Uint32Array(a.buffer,a.byteOffset,a.length>>2),y=new Uint32Array(b.buffer,b.byteOffset,b.length>>2);
+  if(x.length!==y.length)return false;
+  for(let i=0;i<x.length;i++)if(x[i]!==y[i]&&((x[i]>>>24)|(y[i]>>>24)))return false;/* 完全透明的像素颜色不同也算相同 */
+  return true;
+}
+function dedupeList(list){
+  const out=[];
+  for(const it of list){
+    const p=out[out.length-1];
+    if(p&&p.ms+it.ms<=60000&&sameFrame(getProcessed(p.raw).data,getProcessed(it.raw).data))p.ms+=it.ms;
+    else out.push({raw:it.raw,ms:it.ms});
+  }
+  return out;
+}
 function parsePng(u8){
   const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength),ch=[];let p=8;
   while(p+12<=u8.length){
@@ -1632,9 +1956,16 @@ function riffChunk(cc,payload){
 const u24=v=>[v&255,(v>>8)&255,(v>>16)&255];
 /* 每种格式一个渲染函数：返回 {name, blob} 或 {name, files}，不负责保存，批量处理也复用它们 */
 async function renderGIF(list,plan){
-  const byRaw=new Map();
-  for(const it of list)if(!byRaw.has(it.raw))byRaw.set(it.raw,finalRGBA(it.raw,plan));
-  const blob=await encodeGIF(list.map(it=>byRaw.get(it.raw)),plan.W,plan.H,list.map(it=>it.ms),V.gta,V.dither,(a,b)=>sayProgress(t('编码 GIF {0}/{1}',a,b)));
+  const byRaw=new Map(),mc=V.gmatC;
+  for(const it of list)if(!byRaw.has(it.raw)){
+    let d=finalRGBA(it.raw,plan);
+    if(mc){/* 把半透明边缘预先混合到指定底色上，避免放在深色/浅色底上出现白边或黑边 */
+      d=new Uint8ClampedArray(d);
+      for(let j=0;j<d.length;j+=4){const a=d[j+3];if(a>0&&a<255){const k=255-a;d[j]=(d[j]*a+mc[0]*k)/255;d[j+1]=(d[j+1]*a+mc[1]*k)/255;d[j+2]=(d[j+2]*a+mc[2]*k)/255;}}
+    }
+    byRaw.set(it.raw,d);
+  }
+  const blob=await encodeGIF(list.map(it=>byRaw.get(it.raw)),plan.W,plan.H,list.map(it=>it.ms),V.gta,V.dither,(a,b)=>sayProgress(t('编码 GIF {0}/{1}',a,b)),V.gcol);
   return {name:baseName()+t('_抠底')+'.gif',blob:blob};
 }
 async function renderAPNG(list,plan){
@@ -1719,10 +2050,12 @@ async function renderSprite(list,plan){
 }
 async function renderExport(fmt){
   await ensureAll(t('处理中'));
-  const list=exportList(),plan=makePlan();
+  let list=exportList();
+  if(V.dedupe&&(fmt==='gif'||fmt==='apng'||fmt==='webp'))list=dedupeList(list);
+  const plan=makePlan();
   if(plan.W*plan.H*list.length>500e6)throw new Error(t('输出太大了（{0}×{1}，{2} 帧），请缩小尺寸或减少帧数',plan.W,plan.H,list.length));
   if(fmt==='gif'&&V.target>0){
-    const limit=V.target*1048576;let s=V.xscale,r,pl=plan;
+    const limit=V.target*1048576;let s=plan.s,r,pl=plan;
     for(let pass=0;pass<5;pass++){
       r=await renderGIF(list,pl);
       if(r.blob.size<=limit)break;
@@ -1731,7 +2064,7 @@ async function renderExport(fmt){
       pl=makePlan(s);
     }
     if(r.blob.size>limit)r.note=t('没能压到 {0} MB，当前 {1}。可以试试抽帧或关掉抖动',V.target,fmtBytes(r.blob.size));
-    else if(pl.s!==V.xscale)r.note=t('为了达到目标大小，尺寸缩到了 {0}%（{1}×{2}）',Math.round(pl.s/V.xscale*100),pl.W,pl.H);
+    else if(pl.s!==plan.s)r.note=t('为了达到目标大小，尺寸缩到了 {0}%（{1}×{2}）',Math.round(pl.s/plan.s*100),pl.W,pl.H);
     return r;
   }
   const fn={gif:renderGIF,apng:renderAPNG,webp:renderWebP,zip:renderZip,sprite:renderSprite}[fmt];
@@ -1751,27 +2084,92 @@ async function saveFile(name,blob){
   setTimeout(()=>URL.revokeObjectURL(url),15000);
   say(t('已导出 {0}（{1}）',name,fmtBytes(blob.size)),5000);
 }
+async function renderSet(){
+  const res=[];
+  for(const f of V.fmts)res.push(await renderExport(f));
+  if(res.length===1)return res[0];
+  const files=[];
+  for(const r of res){
+    if(r.files)for(const x of r.files)files.push({name:r.name.replace(/\.zip$/,'')+'/'+x.name,data:x.data});
+    else files.push({name:r.name,data:new Uint8Array(await r.blob.arrayBuffer())});
+  }
+  return {name:baseName()+t('_抠底')+'.zip',files:files,note:res.map(r=>r.note).filter(Boolean).join(' ')};
+}
+const exportLabel=()=>t('导出 {0}',V.fmts.map(f=>t(FMT_LABEL[f])).join(' + '));
 async function doExport(){
   if(busy||!G||!seq.length)return;
   busy=true;pause();$('#goExport').disabled=true;$('#goExport').textContent=t('正在导出…');
   try{
-    const r=await renderExport(V.fmt);
+    estTok++;
+    const r=await renderSet();
     const blob=r.blob||makeZip(r.files);
     await saveFile(r.name,blob);
     if(r.note)setTimeout(()=>say(r.note,5000),1800);
   }catch(e){console.error(e);say(t('导出失败：{0}',e&&e.message||e),7000);}
-  finally{busy=false;$('#goExport').textContent=t('导出 {0}',t(FMT_LABEL[V.fmt]));rebuildSeq();}
+  finally{busy=false;$('#goExport').textContent=exportLabel();rebuildSeq();}
 }
 $('#goExport').onclick=doExport;
-function setFmt(f){
-  V.fmt=f;
-  document.querySelectorAll('[data-fmt]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.fmt===f));
-  if(!busy)$('#goExport').textContent=t('导出 {0}',t(FMT_LABEL[f]));
-  $('#optGif1').hidden=f!=='gif';$('#optTarget').hidden=f!=='gif';$('#optGif2').hidden=f!=='gif';
-  $('#optWebp').hidden=f!=='webp';$('#optSprite').hidden=f!=='sprite';
-  $('#fmtHint').textContent=t(FMT_HINT[f]);
+function setFmts(arr,last){
+  V.fmts=arr.length?arr.slice():['gif'];V.fmt=V.fmts[0];
+  document.querySelectorAll('[data-fmt]').forEach(b=>b.setAttribute('aria-pressed',V.fmts.includes(b.dataset.fmt)));
+  refreshFmtUI(last||V.fmts[V.fmts.length-1]);
+  saveSettings();
 }
-document.querySelectorAll('[data-fmt]').forEach(b=>b.onclick=()=>setFmt(b.dataset.fmt));
+function setFmt(f){setFmts([f]);}
+function refreshFmtUI(last){
+  const has=f=>V.fmts.includes(f);
+  if(!busy)$('#goExport').textContent=exportLabel();
+  for(const id of ['optGif1','optTarget','optGif2','optGcol','optGmat'])$('#'+id).hidden=!has('gif');
+  $('#optWebp').hidden=!has('webp');$('#optSprite').hidden=!has('sprite');
+  $('#fmtHint').textContent=V.fmts.length>1?t('同时导出多种格式时，会打包成一个 zip。'):t(FMT_HINT[V.fmts[0]]);
+}
+document.querySelectorAll('[data-fmt]').forEach(b=>b.onclick=()=>{
+  const f=b.dataset.fmt,i=V.fmts.indexOf(f);
+  if(i>=0){if(V.fmts.length>1)setFmts(V.fmts.filter(x=>x!==f));}
+  else setFmts(V.fmts.concat([f]),f);
+  scheduleEstimate();
+});
+
+/* ============ 预设 ============ */
+const PRESETS={
+  wechat:{fmts:['gif'],fitMax:240,target:0.5,square:true,crop:true},
+  discord:{fmts:['gif'],fitMax:128,target:0.25,square:true,crop:true},
+  slack:{fmts:['gif'],fitMax:128,target:0.128,square:true,crop:true},
+  line:{fmts:['apng'],fitMax:270,target:0,square:false,crop:true}
+};
+$('#preset').addEventListener('change',()=>{
+  const p=PRESETS[$('#preset').value];if(!p)return;
+  $('#fitMax').value=p.fitMax;$('#target').value=p.target;$('#square').checked=p.square;$('#crop').checked=p.crop;
+  setFmts(p.fmts);onControl();
+});
+
+/* ============ 导出体积估算 ============ */
+let estTok=0,estTimer=0,quiet=false;
+function scheduleEstimate(){V.est=null;estTok++;clearTimeout(estTimer);estTimer=setTimeout(estimateSize,900);}
+async function estimateSize(){
+  const tok=estTok;
+  if(!G||!seq.length||busy)return;
+  if(V.fmts.length===1&&V.fmts[0]==='gif'&&V.target>0){updateDock();return;}
+  if(V.crop&&!V.cropRect&&seq.length>40)return;
+  quiet=true;
+  try{
+    const plan=makePlan();
+    if(plan.W*plan.H>4e6)return;
+    const n=seq.length,idx=[...new Set([0,Math.floor((n-1)/2),n-1])].map(i=>seq[i]);
+    const sample=idx.map(raw=>({raw:raw,ms:100}));
+    const R={gif:renderGIF,apng:renderAPNG,webp:renderWebP,zip:renderZip,sprite:renderSprite};
+    let total=0;
+    for(const f of V.fmts){
+      if(tok!==estTok)return;
+      const r=await R[f](sample,plan);
+      const bytes=r.blob?r.blob.size:r.files.reduce((a,x)=>a+x.data.length,0);
+      total+=bytes/sample.length*n;
+      await sleep0();
+    }
+    if(tok===estTok){V.est=total;updateDock();}
+  }catch(e){}
+  finally{quiet=false;}
+}
 
 /* ============ 批量处理 ============ */
 async function startBatch(files){
@@ -1779,8 +2177,8 @@ async function startBatch(files){
   if(!ok.length){say(t('没有找到可处理的图片（支持 GIF、APNG、WebP、PNG、JPG）'),5000);return;}
   if(busy)return;
   if(ok.length===1){openFile(ok[0]);return;}
-  busy=true;pause();warmTok++;clearTimeout(warmTimer);$('#goExport').disabled=true;
-  const saved={G,keep,manual,manVer,cache,thumbVer,thumbs,curRaw,pos,seq,bg:P.bg.slice()};
+  busy=true;inBatch=true;estTok++;pause();warmTok++;clearTimeout(warmTimer);$('#goExport').disabled=true;
+  const saved={G,keep,manual,manVer,cache,thumbVer,thumbs,curRaw,pos,seq,bgl:bgList.map(c=>c.slice())};
   const out=[],failed=[];
   try{
     for(let k=0;k<ok.length;k++){
@@ -1791,9 +2189,9 @@ async function startBatch(files){
         const n=g.frames.length;
         keep=new Array(n).fill(true);manual=new Array(n).fill(null);manVer=new Array(n).fill(0);cache=[];thumbVer=[];thumbs=[];
         ver++;curRaw=0;pos=0;
-        P.bg=detectBg(g.frames[0].data,g.W,g.H);
+        {const ab=autoBg(g.frames[0].data,g.W,g.H);P.bg=ab.list[0].slice();P.bgs=ab.list.map(c=>c.slice());}
         seq=computeSeq();
-        const r=await renderExport(V.fmt);
+        const r=await renderSet();
         const base=baseName()+'/';
         if(r.files)for(const x of r.files)out.push({name:base+x.name,data:x.data});
         else out.push({name:r.name,data:new Uint8Array(await r.blob.arrayBuffer())});
@@ -1802,11 +2200,11 @@ async function startBatch(files){
     }
   }finally{
     G=saved.G;keep=saved.keep;manual=saved.manual;manVer=saved.manVer;cache=saved.cache;thumbVer=saved.thumbVer;thumbs=saved.thumbs;
-    curRaw=saved.curRaw;pos=saved.pos;seq=saved.seq;P.bg=saved.bg;ver++;
-    busy=false;
+    curRaw=saved.curRaw;pos=saved.pos;seq=saved.seq;setBgList(saved.bgl);ver++;
+    busy=false;inBatch=false;
   }
-  if(G){setBg(P.bg);onControl();}
-  $('#goExport').textContent=t('导出 {0}',t(FMT_LABEL[V.fmt]));rebuildSeq();
+  if(G){onControl();}
+  $('#goExport').textContent=exportLabel();rebuildSeq();
   if(!out.length){say(t('批量处理失败：{0}',failed.join(t('；'))),8000);return;}
   const names=new Set(),uniq=[];
   for(const o of out){let nm=o.name,i=2;while(names.has(nm)){nm=o.name.replace(/(\.[^.\/]+)$/,'_'+(i++)+'$1');}names.add(nm);uniq.push({name:nm,data:o.data});}
@@ -1816,13 +2214,13 @@ async function startBatch(files){
 
 /* ============ 启动 ============ */
 window.__gifTool={get G(){return G;},get P(){return P;},get V(){return V;},get seq(){return seq;},
-  getProcessed,decodeGIF,decodeAny,encodeGIF,loadBytes,renderExport,setFmt,matte,buildPalette,lzwEncode,lzwDecode,onControl,makeZip};
+  getProcessed,decodeGIF,decodeAny,encodeGIF,loadBytes,renderExport,renderSet,setFmt,matte,buildPalette,lzwEncode,lzwDecode,onControl,makeZip};
 if(!(()=>{try{return document.createElement('canvas').toDataURL('image/webp').indexOf('data:image/webp')===0;}catch(e){return false;}})()){
   $('#fmtWebp').disabled=true;$('#fmtWebp').title=t('这个浏览器不能编码 WebP');
 }
 {const sel=$('#lang');for(const l of LANGS){const o=document.createElement('option');o.value=l[0];o.textContent=l[1];sel.appendChild(o);}
 sel.addEventListener('change',()=>applyLang(sel.value,true));}
-readControls();applyViewBg();setFmt('gif');applyLang(pickLang(),false);updateDockPad();updateHistBtns();
+loadSettings();readControls();applyViewBg();setFmts(V.fmts);applyLang(pickLang(),false);updateDockPad();updateHistBtns();
 makeSample(false);
 })();
 </script>

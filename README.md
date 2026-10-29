@@ -1,4 +1,4 @@
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Русский](README.ru.md) · [Español](README.es.md) · [한국어](README.ko.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
 # GIF Cutout
 
@@ -19,13 +19,15 @@ Remove white, black or any solid background from animated GIFs — right in your
 
 ## Features
 
-- Auto-detects the background; eyedropper for any other solid colour
+- Auto-detects the background (even fake “transparent” checkerboards); eyedropper adds up to 6 background colours
 - **Leak guard** and **auto-fill gaps** stop thin lines in the source from cutting slits into the subject
-- Brush and **magic wand** touch-ups with undo / redo; edge smoothing, halo removal
+- Brush, **fill brush** and **magic wand** (it follows the subject across frames); undo / redo for settings and touch-ups alike
 - Outline, shadow, glow, colour tweaks; reverse, ping-pong, frame skipping, new backgrounds
+- Zoom & pan, hold **C** to peek at the original, in/out points, copy a frame as transparent PNG, keyboard shortcuts, settings remembered
 - Input: GIF, APNG, WebP, PNG, JPG, paste, batch folders
-- Export: GIF (with target file size), APNG, animated WebP, PNG sequence (zip), sprite sheet
-- 6 languages, auto-detected, switch at the top-left
+- Export: GIF (target file size, colour count, edge pre-blend), APNG, animated WebP, PNG sequence (zip), sprite sheet — several formats at once in one zip
+- Sticker presets (WeChat, Discord, Slack, LINE), square padding, crop box, merge duplicate frames, live size estimate
+- 10 languages, auto-detected, switch at the top-left
 
 ## Limits
 

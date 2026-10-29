@@ -1,4 +1,4 @@
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Русский](README.ru.md) · [Español](README.es.md) · [한국어](README.ko.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
 # GIF Cutout
 
@@ -19,13 +19,15 @@ Quita el fondo blanco, negro o de cualquier color sólido de GIFs animados, dire
 
 ## Funciones
 
-- Detecta el fondo automáticamente; cuentagotas para cualquier otro color sólido
-- **Anti-fugas** y **rellenar huecos**: las líneas finas del original ya no abren rendijas en el sujeto
-- Pincel y **varita mágica** para retocar, con deshacer/rehacer; suavizado de bordes, quitar halo
-- Contorno, sombra, resplandor, ajuste de color; reversa, ida y vuelta, saltar fotogramas, nuevo fondo
-- Entrada: GIF, APNG, WebP, PNG, JPG, pegar, procesar carpetas por lotes
-- Salida: GIF (con tamaño objetivo), APNG, WebP animado, secuencia PNG (zip), hoja de sprites
-- 6 idiomas, detección automática, selector arriba a la izquierda
+- Detecta el fondo automáticamente (incluso los falsos tableros «transparentes»); el cuentagotas añade hasta 6 colores de fondo
+- **Protección contra fugas** y **relleno automático de huecos**: las líneas finas del original ya no abren rendijas en el sujeto
+- Pincel, **pincel de relleno** y **varita mágica** (sigue al sujeto entre fotogramas); deshacer / rehacer para ajustes y retoques
+- Contorno, sombra, brillo, color; reversa, ping-pong, salto de fotogramas, nuevos fondos
+- Zoom y desplazamiento, mantén **C** para ver el original, puntos de inicio / fin, copiar un fotograma como PNG transparente, atajos de teclado, ajustes recordados
+- Entrada: GIF, APNG, WebP, PNG, JPG, pegar, carpetas por lotes
+- Salida: GIF (tamaño objetivo, número de colores, premezcla de bordes), APNG, WebP animado, secuencia PNG (zip), hoja de sprites; varios formatos a la vez en un solo zip
+- Preajustes para stickers (WeChat, Discord, Slack, LINE), relleno cuadrado, recuadro de recorte, fusión de fotogramas repetidos, estimación de tamaño
+- 10 idiomas, detección automática, cambio arriba a la izquierda
 
 ## Limitaciones
 

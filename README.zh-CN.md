@@ -1,4 +1,4 @@
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Русский](README.ru.md) · [Español](README.es.md) · [한국어](README.ko.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Русский](README.ru.md) · [Español](README.es.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Deutsch](README.de.md)
 
 # GIF 抠底台
 
@@ -19,13 +19,15 @@
 
 ## 功能
 
-- 自动识别背景色，也可用吸管点选任意纯色
+- 自动识别背景色（连假「透明」棋盘格也能识别），吸管可追加最多 6 种背景色
 - **穿透保护**和**自动补缝**：原图里的细线不会再在主体上抠出缝
-- 画笔和**魔棒**手动修补，可撤销重做；边缘平滑、去白边/黑边
+- 画笔、**补色画笔**和**魔棒**（会跟着主体在各帧间移动）；参数和手动修补都能撤销 / 重做
 - 描边、投影、发光、调色；倒放、来回播放、抽帧、换背景
+- 缩放平移、按住 **C** 看原图、起点 / 终点、复制当前帧为透明 PNG、快捷键、自动记住设置
 - 输入：GIF、APNG、WebP、PNG、JPG，支持粘贴和批量处理文件夹
-- 导出：GIF（可设目标大小）、APNG、动画 WebP、PNG 序列（zip）、精灵图
-- 6 种语言，自动识别，左上角可切换
+- 导出：GIF（可设目标大小、颜色数、边缘预混合）、APNG、动画 WebP、PNG 序列（zip）、精灵图；可同时导出多种格式，打包成一个 zip
+- 表情预设（微信、Discord、Slack、LINE）、补成正方形、裁剪框、合并重复帧、实时体积估算
+- 10 种语言，自动识别，左上角可切换
 
 ## 已知限制
 
