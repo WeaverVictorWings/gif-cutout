@@ -1,0 +1,1828 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GIF 抠底台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* 布局：左侧是切割垫式预览台和导出选项，右侧是参数栏，底部常驻大号导出栏；窄屏上下堆叠。 */
+:root{
+  --bg:#EDF0EE; --panel:#FFFFFF; --ink:#17211D; --muted:#586861; --line:#D3DBD7;
+  --accent:#D2441F; --accent-ink:#FFFFFF; --mat:#35574A; --matline:rgba(255,255,255,.08);
+  --field:#F4F7F5; --chk-a:#FFFFFF; --chk-b:#D9E0DC;
+  --f-display:'Bricolage Grotesque','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;
+  --f-body:-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans SC',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1512; --panel:#17201C; --ink:#E5EDE9; --muted:#8FA198; --line:#2A3631;
+    --accent:#FF7A55; --accent-ink:#1A0B06; --mat:#1F3A30; --matline:rgba(255,255,255,.06);
+    --field:#111915; --chk-a:#2A3430; --chk-b:#1D2622; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1512; --panel:#17201C; --ink:#E5EDE9; --muted:#8FA198; --line:#2A3631;
+  --accent:#FF7A55; --accent-ink:#1A0B06; --mat:#1F3A30; --matline:rgba(255,255,255,.06);
+  --field:#111915; --chk-a:#2A3430; --chk-b:#1D2622; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:20px 150px}
+.app{max-width:1240px;margin:0 auto}
+h1{font:700 30px/1.1 var(--f-display);letter-spacing:-.01em;margin:0}
+.sub{color:var(--muted);margin:6px 0 0;max-width:68ch}
+.top{margin-bottom:16px}
+.langbar{display:flex;justify-content:flex-start;margin-bottom:10px}
+.langbar select{min-height:32px;font-size:13px;padding:3px 8px}
+.quick{list-style:none;display:flex;flex-wrap:wrap;gap:6px 22px;margin:12px 0 0;padding:0;color:var(--ink);font-size:13.5px}
+.quick li{padding-left:0}
+.foot{margin-top:26px;text-align:center;color:var(--muted);font-size:12.5px}
+.foot a{color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.btn{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:6px 12px;cursor:pointer;min-height:36px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+select,input[type=number]{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:7px;padding:5px 8px;min-height:34px;max-width:100%}
+input[type=color]{width:42px;height:34px;padding:2px;border:1px solid var(--line);border-radius:7px;background:var(--field);cursor:pointer}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0}
+input[type=checkbox]{accent-color:var(--accent)}
+code,.mono,output{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.drop{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;justify-content:space-between;border:1.5px dashed var(--line);border-radius:10px;padding:10px 14px;background:var(--panel)}
+body.dragging .drop{border-color:var(--accent);outline:3px solid var(--accent)}
+.drop .grp{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;min-width:0}
+.mini{color:var(--muted);font-size:13px}
+.info{font:12.5px var(--f-mono);color:var(--muted);margin:10px 2px 14px;min-height:1.5em;overflow-wrap:anywhere}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"stage panel" "exp panel";gap:16px 24px;align-items:start}
+.stage{grid-area:stage;min-width:0}
+.panel{grid-area:panel;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 16px 8px}
+.exp{grid-area:exp;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 16px 14px}
+@media (max-width:900px){
+  .grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"stage" "panel" "exp"}
+}
+
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-bottom:8px}
+.bar .scrub{flex:1 1 140px;min-width:110px}
+.bar .fl{font:12.5px var(--f-mono);color:var(--muted);white-space:nowrap}
+.mat{background-color:var(--mat);background-image:linear-gradient(var(--matline) 1px,transparent 1px),linear-gradient(90deg,var(--matline) 1px,transparent 1px);background-size:24px 24px;border-radius:12px;padding:24px;display:flex;justify-content:center;align-items:center;min-height:300px;overflow:auto}
+.view{position:relative;line-height:0;flex:0 0 auto}
+.view canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+.view.pix canvas{image-rendering:pixelated}
+.view.checker{background-color:var(--chk-a);background-image:linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%),linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%);background-size:16px 16px;background-position:0 0,8px 8px}
+.view.pickmode canvas,.view.wandmode canvas{cursor:crosshair}
+.view.brush canvas{cursor:none;touch-action:none}
+.divider{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent);pointer-events:none}
+.ring{position:absolute;border-radius:50%;pointer-events:none;border:1.5px solid #fff;box-shadow:0 0 0 1px #000,inset 0 0 0 1px #000;transform:translate(-50%,-50%)}
+.bar2{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{font:inherit;font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 11px;min-height:30px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip:disabled{opacity:.4;cursor:not-allowed}
+.lbl{font-size:13px;color:var(--muted)}
+
+.strip{position:relative;display:flex;gap:8px;overflow-x:auto;padding:10px 2px 12px;margin-top:6px}
+.th{flex:0 0 auto;width:72px;text-align:center}
+.th canvas{width:72px;height:72px;display:block;border-radius:6px;border:2px solid transparent;cursor:pointer;
+  background-color:var(--chk-a);background-image:linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%),linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%);background-size:12px 12px;background-position:0 0,6px 6px}
+.th.on canvas{border-color:var(--accent)}
+.th.off canvas{opacity:.28}
+.th label{display:flex;gap:4px;justify-content:center;align-items:center;font:12px var(--f-mono);color:var(--muted);margin-top:3px;cursor:pointer}
+
+details.sec{border-top:1px solid var(--line);padding:10px 0}
+details.sec:first-of-type{border-top:0}
+details.sec>summary{list-style:none;cursor:pointer;font:600 13px var(--f-body);letter-spacing:.08em;color:var(--muted);display:flex;justify-content:space-between;align-items:center;min-height:30px}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary::after{content:"+";font:500 17px var(--f-mono)}
+details.sec[open]>summary::after{content:"−"}
+details.sec>.body{padding-top:10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.row:last-child{margin-bottom:0}
+.sl{display:grid;grid-template-columns:1fr auto;gap:2px 8px;margin-bottom:10px}
+.sl label{font-size:13px}
+.sl output{font-size:12.5px;color:var(--muted)}
+.sl input{grid-column:1/-1}
+.hint{font-size:12.5px;color:var(--muted);margin:2px 0 8px}
+.chk{display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer}
+.sub2{font-size:12.5px;font-weight:600;color:var(--ink);margin:12px 0 6px}
+.exp h2{font:600 13px var(--f-body);letter-spacing:.08em;color:var(--muted);margin:12px 0 10px}
+.exopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 18px;align-items:end}
+.exopts .sl{margin:0}
+
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -8px 28px rgba(0,0,0,.14);
+  padding-top:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.dock-in{max-width:1240px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.dock .left{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 380px}
+.fmt{display:flex;gap:6px;flex-wrap:wrap}
+.fmt .chip{font-size:14px;font-weight:600;padding:6px 14px;min-height:40px}
+.dockinfo{font:12px var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.go{font:700 18px var(--f-body);min-height:56px;padding:0 34px;border-radius:12px;background:var(--accent);color:var(--accent-ink);border:0;cursor:pointer;min-width:240px;box-shadow:0 4px 14px rgba(210,68,31,.35)}
+.go:hover:not(:disabled){filter:brightness(1.07)}
+.go:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(var(--dock-h,110px) + 14px + env(safe-area-inset-bottom,0px));margin:0 auto;width:fit-content;max-width:100%;background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:13.5px;z-index:20;box-shadow:0 6px 24px rgba(0,0,0,.28)}
+@media (max-width:620px){
+  .go{width:100%}
+  .mat{padding:12px}
+  h1{font-size:26px}
+  body{padding-block:20px 210px}
+}
+</style>
+
+<div class="app">
+  <div class="langbar"><select id="lang" aria-label="Language"></select></div>
+  <header class="top">
+    <h1>GIF 抠底台</h1>
+    <p class="sub">拖入动图，去掉白底或黑底，导出透明 GIF、APNG、WebP、序列帧或精灵图。所有处理都在你的浏览器里完成，文件不会上传。</p>
+    <ol class="quick"><li>1. 拖入或选择一个动图</li><li>2. 看预览，边缘不干净就调「容差」</li><li>3. 点底部的大按钮导出</li></ol>
+  </header>
+
+  <section class="drop" id="drop">
+    <div class="grp">
+      <button class="btn primary" id="btnOpen" type="button">选择文件</button>
+      <button class="btn" id="btnBatch" type="button">批量处理</button>
+      <button class="btn" id="btnBatchDir" type="button">批量选文件夹</button>
+      <span class="mini">支持 GIF（推荐）、APNG、WebP、PNG、JPG。可拖入页面，也可 Ctrl+V 粘贴。</span>
+    </div>
+    <div class="grp">
+      <span class="mini">没有素材？</span>
+      <button class="btn" id="sampleW" type="button">白底示例</button>
+      <button class="btn" id="sampleB" type="button">黑底示例</button>
+    </div>
+    <input type="file" id="file" accept="image/gif,image/png,image/webp,image/jpeg,.gif,.apng,.webp,.png,.jpg,.jpeg" hidden>
+    <input type="file" id="fileBatch" accept="image/gif,image/png,image/webp,image/jpeg,.gif,.apng,.webp,.png,.jpg,.jpeg" multiple hidden>
+    <input type="file" id="fileDir" webkitdirectory multiple hidden>
+  </section>
+  <div class="info" id="info" data-skip></div>
+
+  <main class="grid">
+    <section class="stage">
+      <div class="bar">
+        <button class="btn" id="play" type="button" data-skip>暂停</button>
+        <button class="btn" id="undo" type="button" title="撤销 (Ctrl+Z)" disabled>撤销</button>
+        <button class="btn" id="redo" type="button" title="重做 (Ctrl+Y)" disabled>重做</button>
+        <input class="scrub" type="range" id="scrub" min="0" max="0" value="0" aria-label="帧位置">
+        <span class="fl" id="fl" data-skip></span>
+      </div>
+      <div class="mat" id="mat">
+        <div class="view checker" id="view">
+          <canvas id="cvOrig" hidden></canvas>
+          <canvas id="cvOut"></canvas>
+          <div class="divider" id="divider" hidden></div>
+          <div class="ring" id="ring" hidden></div>
+        </div>
+      </div>
+      <div class="bar2">
+        <div class="chips" role="group" aria-label="查看方式">
+          <span class="lbl">查看</span>
+          <button class="chip" type="button" data-view="out" aria-pressed="true">抠图结果</button>
+          <button class="chip" type="button" data-view="orig" aria-pressed="false">原图</button>
+          <button class="chip" type="button" data-view="cmp" aria-pressed="false">对比</button>
+          <button class="chip" type="button" data-view="alpha" aria-pressed="false">透明度</button>
+          <input type="range" id="cmpPos" min="0" max="100" value="50" style="width:100px" hidden aria-label="对比位置">
+        </div>
+        <div class="chips" role="group" aria-label="预览背景">
+          <span class="lbl">预览背景</span>
+          <button class="chip" type="button" data-bg="checker" aria-pressed="true">棋盘</button>
+          <button class="chip" type="button" data-bg="white" aria-pressed="false">白</button>
+          <button class="chip" type="button" data-bg="black" aria-pressed="false">黑</button>
+          <button class="chip" type="button" data-bg="green" aria-pressed="false">绿</button>
+          <input type="color" id="pbgCol" value="#8a5cf6" aria-label="自定义预览背景">
+        </div>
+        <div class="chips">
+          <span class="lbl">缩放</span>
+          <select id="zoom" aria-label="缩放">
+            <option value="fit">适应</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option>
+          </select>
+        </div>
+      </div>
+      <div class="strip" id="strip" data-skip aria-label="帧列表"></div>
+    </section>
+
+    <aside class="panel" aria-label="参数">
+      <details class="sec" open>
+        <summary>抠图</summary>
+        <div class="body">
+          <div class="row">
+            <input type="color" id="bgColor" value="#ffffff" aria-label="要去掉的背景色">
+            <code id="bgHex">#FFFFFF</code>
+            <button class="btn" type="button" id="bgAuto">自动识别</button>
+            <button class="btn" type="button" id="bgW">白</button>
+            <button class="btn" type="button" id="bgB">黑</button>
+            <button class="btn" type="button" id="pick" aria-pressed="false">吸管</button>
+          </div>
+          <div class="row">
+            <select id="mode" aria-label="抠除范围">
+              <option value="edge">只去掉与边缘相连的背景（保护主体内部）</option>
+              <option value="all">去掉画面中所有相近颜色</option>
+            </select>
+          </div>
+          <div class="sl"><label for="tol">容差</label><output id="tolV">14</output><input type="range" id="tol" min="0" max="100" value="14"></div>
+          <div class="sl"><label for="guard">穿透保护（挡住细线）</label><output id="guardV">3</output><input type="range" id="guard" min="0" max="8" value="3"></div>
+          <p class="hint">原图里的白色（或黑色）细线连着外面时，背景会顺着它钻进主体，抠出一条条缝。数值越大，能挡住的线越粗。</p>
+          <div class="sl"><label for="speck">去除杂点（面积）</label><output id="speckV">4</output><input type="range" id="speck" min="0" max="60" value="4"></div>
+          <div class="sl"><label for="close">自动补缝（填平主体内的细缝）</label><output id="closeV">0</output><input type="range" id="close" min="0" max="6" value="0"></div>
+          <p class="hint">原图本身就带透明缝时，穿透保护救不回来，用这个：数值越大，能补的缝越宽。太大会把手指之间等细小空隙也填上。</p>
+          <div class="sl"><label for="band">边缘平滑（像素）</label><output id="bandV">2</output><input type="range" id="band" min="0" max="4" value="2"></div>
+          <div class="sl"><label for="decon">去白边 / 黑边</label><output id="deconV">90</output><input type="range" id="decon" min="0" max="100" value="90"></div>
+          <div class="sl"><label for="shrink">边缘收缩（像素）</label><output id="shrinkV">0</output><input type="range" id="shrink" min="0" max="4" value="0"></div>
+          <div class="row"><button class="btn" type="button" id="resetP">恢复默认参数</button></div>
+        </div>
+      </details>
+
+      <details class="sec" open>
+        <summary>特效与调色</summary>
+        <div class="body">
+          <div class="sub2">描边</div>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="olOn"> 加描边</label>
+            <input type="color" id="olColor" value="#ffffff" aria-label="描边颜色">
+          </div>
+          <div class="sl"><label for="olW">宽度（像素）</label><output id="olWV">4</output><input type="range" id="olW" min="1" max="24" value="4"></div>
+          <div class="sub2">投影</div>
+          <div class="row">
+            <select id="shMode" aria-label="投影"><option value="none">无投影</option><option value="soft">柔和投影</option><option value="hard">硬投影</option></select>
+            <input type="color" id="shColor" value="#000000" aria-label="投影颜色">
+          </div>
+          <div class="sl"><label for="shOff">投影距离（像素）</label><output id="shOffV">6</output><input type="range" id="shOff" min="1" max="30" value="6"></div>
+          <div class="sub2">发光边</div>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="glowOn"> 加发光</label>
+            <input type="color" id="glowColor" value="#ffe45e" aria-label="发光颜色">
+          </div>
+          <div class="sl"><label for="glowR">发光范围（像素）</label><output id="glowRV">10</output><input type="range" id="glowR" min="2" max="40" value="10"></div>
+          <div class="sub2">调色</div>
+          <div class="sl"><label for="bri">亮度</label><output id="briV">0</output><input type="range" id="bri" min="-100" max="100" value="0"></div>
+          <div class="sl"><label for="sat">饱和度</label><output id="satV">0</output><input type="range" id="sat" min="-100" max="100" value="0"></div>
+          <div class="sl"><label for="op">整体透明度</label><output id="opV">100</output><input type="range" id="op" min="0" max="100" value="100"></div>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="fxInv"> 反相</label>
+            <label class="chk"><input type="checkbox" id="fxRainbow"> 彩虹循环</label>
+            <label class="chk"><input type="checkbox" id="fxGhost"> 幽灵</label>
+          </div>
+        </div>
+      </details>
+
+      <details class="sec">
+        <summary>手动修补</summary>
+        <div class="body">
+          <div class="row" role="group" aria-label="笔刷">
+            <button class="chip" type="button" data-tool="none" aria-pressed="true">不使用</button>
+            <button class="chip" type="button" data-tool="erase" aria-pressed="false">擦除</button>
+            <button class="chip" type="button" data-tool="restore" aria-pressed="false">恢复</button>
+            <button class="chip" type="button" data-tool="wandE" aria-pressed="false" title="点一下，擦掉一整块相近的颜色">魔棒擦除</button>
+            <button class="chip" type="button" data-tool="wandR" aria-pressed="false" title="点一下，恢复一整块相近的颜色">魔棒恢复</button>
+          </div>
+          <p class="hint">魔棒：在预览图上点一下，把点中的那一整块相近颜色擦掉（或恢复）。</p>
+          <div class="sl"><label for="wtol">魔棒容差</label><output id="wtolV">24</output><input type="range" id="wtol" min="0" max="100" value="24"></div>
+          <div class="sl"><label for="wgrow">选区外扩（像素，盖住抗锯齿边）</label><output id="wgrowV">1</output><input type="range" id="wgrow" min="0" max="4" value="1"></div>
+          <div class="row"><label class="chk"><input type="checkbox" id="wcontig" checked> 只选相连的区域（取消则选全图同色）</label></div>
+          <div class="sl"><label for="bsz">笔刷大小（像素）</label><output id="bszV">14</output><input type="range" id="bsz" min="2" max="80" value="14"></div>
+          <div class="row">
+            <label class="chk"><input type="checkbox" id="allF"> 作用于所有帧</label>
+            <button class="btn" type="button" id="clrMan">清除手动修改</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="sec">
+        <summary>时间轴</summary>
+        <div class="body">
+          <div class="row">
+            <select id="pm" aria-label="播放方式">
+              <option value="fwd">正放</option><option value="rev">倒放</option><option value="pp">来回播放</option>
+            </select>
+            <select id="thin" aria-label="抽帧">
+              <option value="1">保留全部帧</option><option value="2">每 2 帧留 1 帧</option><option value="3">每 3 帧留 1 帧</option><option value="4">每 4 帧留 1 帧</option>
+            </select>
+          </div>
+          <div class="sl"><label for="speed">速度</label><output id="speedV">1.00×</output><input type="range" id="speed" min="0.25" max="3" step="0.05" value="1"></div>
+          <p class="hint">取消勾选缩略图下方的方框，可以删除那一帧。抽帧会自动把留下的帧拉长，整体速度不变。</p>
+        </div>
+      </details>
+
+      <details class="sec">
+        <summary>输出背景</summary>
+        <div class="body">
+          <div class="row">
+            <select id="obg" aria-label="输出背景">
+              <option value="none">透明</option><option value="solid">纯色</option><option value="grad">渐变</option>
+            </select>
+          </div>
+          <div class="row" id="obgBox" hidden>
+            <input type="color" id="obg1" value="#ffffff" aria-label="颜色一">
+            <input type="color" id="obg2" value="#cfe3ff" aria-label="颜色二" hidden>
+            <select id="obgDir" aria-label="渐变方向" hidden>
+              <option value="v">上到下</option><option value="h">左到右</option>
+            </select>
+          </div>
+          <p class="hint">把抠好的动图放到新背景上再导出。</p>
+        </div>
+      </details>
+    </aside>
+
+    <section class="exp" aria-label="导出选项">
+      <h2>导出选项</h2>
+      <div class="exopts">
+        <div class="row" style="margin:0">
+          <span class="lbl">尺寸</span>
+          <select id="xscale" aria-label="导出尺寸">
+            <option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option>
+            <option value="1" selected>100%</option><option value="1.5">150%</option><option value="2">200%</option><option value="3">300%</option><option value="4">400%</option>
+          </select>
+          <label class="chk"><input type="checkbox" id="pixel"> 像素风放大</label>
+        </div>
+        <div class="row" style="margin:0">
+          <label class="chk"><input type="checkbox" id="crop"> 裁掉透明边</label>
+          <span class="lbl">留白</span>
+          <input type="number" id="cropPad" min="0" max="64" value="2" style="width:70px" aria-label="留白像素">
+        </div>
+        <div class="sl" id="optGif1"><label for="gta">GIF 透明阈值</label><output id="gtaV">128</output><input type="range" id="gta" min="1" max="254" value="128"></div>
+        <label class="chk" id="optTarget">目标大小 <input type="number" id="target" min="0" max="100" step="0.5" value="0" style="width:72px" aria-label="目标大小 MB"> MB（0 为不限制，自动缩小尺寸）</label>
+        <label class="chk" id="optGif2"><input type="checkbox" id="dither"> GIF 抖动（渐变更平滑）</label>
+        <div class="sl" id="optWebp" hidden><label for="wq">WebP 画质（100 为无损）</label><output id="wqV" data-skip>90</output><input type="range" id="wq" min="40" max="100" value="90"></div>
+        <label class="chk" id="optSprite" hidden>精灵图列数 <input type="number" id="cols" min="0" max="64" value="0" style="width:72px" placeholder="自动"></label>
+      </div>
+      <p class="hint" style="margin-top:10px" id="fmtHint" data-skip></p>
+    </section>
+  </main>
+  <footer class="foot"><span>免费开源 · MIT 许可证 · 所有处理都在你的浏览器里完成</span> · <a href="https://github.com/WeaverVictorWings/gif-cutout" target="_blank" rel="noopener">GitHub</a> · v1.0.0</footer>
+</div>
+
+<div class="dock" id="dock">
+  <div class="dock-in">
+    <div class="left">
+      <div class="fmt" role="group" aria-label="导出格式">
+        <button class="chip" type="button" data-fmt="gif" aria-pressed="true">GIF</button>
+        <button class="chip" type="button" data-fmt="apng" aria-pressed="false">APNG</button>
+        <button class="chip" type="button" data-fmt="webp" aria-pressed="false" id="fmtWebp">WebP</button>
+        <button class="chip" type="button" data-fmt="zip" aria-pressed="false">PNG 序列</button>
+        <button class="chip" type="button" data-fmt="sprite" aria-pressed="false">精灵图</button>
+      </div>
+      <div class="dockinfo" id="dockInfo" data-skip></div>
+    </div>
+    <button class="go" type="button" id="goExport" data-skip>导出 GIF</button>
+  </div>
+</div>
+<div class="toast" data-skip id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+/* ============ 多语言 ============ */
+const LANGS=[['zh-CN','简体中文'],['en','English'],['ja','日本語'],['ru','Русский'],['es','Español'],['ko','한국어']];
+const LANG_IDX={en:0,ja:1,ru:2,es:3,ko:4};
+const DICT={"GIF 抠底台":["GIF Cutout","GIF背景カッター","GIF Cutout","GIF Cutout","GIF 배경 제거기"],"拖入动图，去掉白底或黑底，导出透明 GIF、APNG、WebP、序列帧或精灵图。所有处理都在你的浏览器里完成，文件不会上传。":["Drop in an animated GIF, remove the white or black background, and export a transparent GIF, APNG, WebP, PNG sequence or sprite sheet. Everything runs in your browser; nothing is uploaded.","アニメGIFをドロップして白背景・黒背景を消し、透過GIF・APNG・WebP・PNG連番・スプライトシートで書き出せます。処理はすべてブラウザ内で完結し、ファイルはアップロードされません。","Перетащите анимированный GIF, удалите белый или чёрный фон и сохраните прозрачный GIF, APNG, WebP, последовательность PNG или спрайт-лист. Всё работает в браузере, файлы никуда не загружаются.","Arrastra un GIF animado, quita el fondo blanco o negro y exporta un GIF, APNG, WebP, secuencia PNG u hoja de sprites con transparencia. Todo se procesa en tu navegador; no se sube nada.","움직이는 GIF를 끌어다 놓고 흰색·검은색 배경을 지운 뒤 투명 GIF, APNG, WebP, PNG 시퀀스, 스프라이트 시트로 내보내세요. 모든 처리는 브라우저 안에서 이뤄지며 파일은 업로드되지 않습니다."],"1. 拖入或选择一个动图":["1. Drop or choose an animation","1. アニメをドロップ／選択","1. Перетащите или выберите анимацию","1. Arrastra o elige una animación","1. 애니메이션을 끌어다 놓거나 선택"],"2. 看预览，边缘不干净就调「容差」":["2. Check the preview; raise Tolerance if edges look dirty","2. プレビューを確認し、縁が汚ければ「許容値」を調整","2. Смотрите превью; если края грязные — увеличьте «Допуск»","2. Mira la vista previa; si los bordes se ven sucios, sube la «Tolerancia»","2. 미리보기를 보고 가장자리가 지저분하면 「허용치」 조정"],"3. 点底部的大按钮导出":["3. Hit the big button at the bottom to export","3. 下の大きなボタンで書き出し","3. Нажмите большую кнопку внизу, чтобы сохранить","3. Pulsa el botón grande de abajo para exportar","3. 아래의 큰 버튼으로 내보내기"],"选择文件":["Choose file","ファイルを選択","Выбрать файл","Elegir archivo","파일 선택"],"批量处理":["Batch","一括処理","Пакетная обработка","Procesar por lotes","일괄 처리"],"批量选文件夹":["Batch from folder","フォルダで一括","Пакет из папки","Lote desde carpeta","폴더로 일괄"],"支持 GIF（推荐）、APNG、WebP、PNG、JPG。可拖入页面，也可 Ctrl+V 粘贴。":["Supports GIF (recommended), APNG, WebP, PNG, JPG. Drag onto the page or paste with Ctrl+V.","GIF（推奨）・APNG・WebP・PNG・JPGに対応。ページへのドラッグや Ctrl+V の貼り付けもOK。","Поддерживаются GIF (лучше всего), APNG, WebP, PNG, JPG. Перетащите на страницу или вставьте через Ctrl+V.","Admite GIF (recomendado), APNG, WebP, PNG y JPG. Arrástralo a la página o pégalo con Ctrl+V.","GIF(권장), APNG, WebP, PNG, JPG 지원. 페이지에 끌어다 놓거나 Ctrl+V로 붙여넣기."],"没有素材？":["No file handy?","素材がない？","Нет файла?","¿No tienes un archivo?","파일이 없나요?"],"白底示例":["White sample","白背景サンプル","Образец: белый фон","Ejemplo fondo blanco","흰 배경 예시"],"黑底示例":["Black sample","黒背景サンプル","Образец: чёрный фон","Ejemplo fondo negro","검은 배경 예시"],"暂停":["Pause","一時停止","Пауза","Pausa","일시정지"],"播放":["Play","再生","Играть","Reproducir","재생"],"撤销 (Ctrl+Z)":["Undo (Ctrl+Z)","元に戻す (Ctrl+Z)","Отменить (Ctrl+Z)","Deshacer (Ctrl+Z)","실행 취소 (Ctrl+Z)"],"撤销":["Undo","元に戻す","Отмена","Deshacer","실행 취소"],"重做 (Ctrl+Y)":["Redo (Ctrl+Y)","やり直し (Ctrl+Y)","Повторить (Ctrl+Y)","Rehacer (Ctrl+Y)","다시 실행 (Ctrl+Y)"],"重做":["Redo","やり直し","Повтор","Rehacer","다시 실행"],"帧位置":["Frame position","フレーム位置","Позиция кадра","Posición del fotograma","프레임 위치"],"查看方式":["View mode","表示モード","Режим просмотра","Modo de vista","보기 방식"],"查看":["View","表示","Вид","Vista","보기"],"抠图结果":["Result","結果","Результат","Resultado","결과"],"原图":["Original","元画像","Оригинал","Original","원본"],"对比":["Compare","比較","Сравнить","Comparar","비교"],"透明度":["Alpha","アルファ","Альфа","Alfa","알파"],"对比位置":["Compare position","比較位置","Позиция сравнения","Posición de comparación","비교 위치"],"预览背景":["Preview BG","プレビュー背景","Фон превью","Fondo de vista","미리보기 배경"],"棋盘":["Checker","市松模様","Шахматка","Cuadros","체크무늬"],"白":["White","白","Белый","Blanco","흰색"],"黑":["Black","黒","Чёрный","Negro","검정"],"绿":["Green","緑","Зелёный","Verde","초록"],"自定义预览背景":["Custom preview background","プレビュー背景色を指定","Свой фон превью","Fondo de vista personalizado","미리보기 배경색 지정"],"缩放":["Zoom","ズーム","Масштаб","Zoom","확대"],"适应":["Fit","合わせる","Вписать","Ajustar","맞춤"],"帧列表":["Frame list","フレーム一覧","Список кадров","Lista de fotogramas","프레임 목록"],"参数":["Settings","設定","Настройки","Ajustes","설정"],"抠图":["Cutout","切り抜き","Вырезание","Recorte","배경 제거"],"要去掉的背景色":["Background colour to remove","消す背景色","Удаляемый цвет фона","Color de fondo a quitar","지울 배경색"],"自动识别":["Auto-detect","自動検出","Авто","Detectar","자동 감지"],"吸管":["Eyedropper","スポイト","Пипетка","Cuentagotas","스포이트"],"抠除范围":["Removal scope","消す範囲","Область удаления","Alcance","제거 범위"],"只去掉与边缘相连的背景（保护主体内部）":["Only background connected to the edge (protects the subject)","縁につながる背景だけ消す（被写体の内側を保護）","Только фон, связанный с краем (защищает объект)","Solo el fondo conectado al borde (protege el sujeto)","가장자리와 이어진 배경만 (피사체 내부 보호)"],"去掉画面中所有相近颜色":["All similar colours in the image","画面内の近い色をすべて消す","Все похожие цвета на кадре","Todos los colores similares","화면의 비슷한 색 모두"],"容差":["Tolerance","許容値","Допуск","Tolerancia","허용치"],"穿透保护（挡住细线）":["Leak guard (blocks thin lines)","リーク防止（細い線を遮る）","Защита от протечек (тонкие линии)","Anti-fugas (bloquea líneas finas)","누출 방지 (가는 선 차단)"],"原图里的白色（或黑色）细线连着外面时，背景会顺着它钻进主体，抠出一条条缝。数值越大，能挡住的线越粗。":["If thin white (or black) lines in the source connect to the outside, the removal can leak along them and cut slits into the subject. Higher values block thicker lines.","元画像の白（または黒）の細い線が外側とつながっていると、背景がその線に沿って被写体に入り込み、筋状に抜けてしまいます。値が大きいほど太い線まで遮れます。","Если тонкие белые (или чёрные) линии в исходнике соединены с внешним фоном, удаление «протекает» по ним и прорезает щели в объекте. Чем больше значение, тем более толстые линии блокируются.","Si hay líneas finas blancas (o negras) en el original conectadas con el exterior, el borrado se «filtra» por ellas y abre rendijas en el sujeto. Cuanto mayor el valor, más gruesas las líneas que bloquea.","원본의 가는 흰색(또는 검은색) 선이 바깥과 이어져 있으면 배경이 선을 따라 피사체 안으로 번져 틈이 생깁니다. 값이 클수록 더 굵은 선까지 막습니다."],"去除杂点（面积）":["Remove specks (area)","ごみ除去（面積）","Удаление пятен (площадь)","Quitar motas (área)","잡티 제거 (면적)"],"自动补缝（填平主体内的细缝）":["Auto-fill gaps (close slits in subject)","自動すき間埋め（被写体内の細い隙間）","Автозаливка щелей (внутри объекта)","Rellenar huecos (rendijas en el sujeto)","틈 자동 채우기 (피사체 내부)"],"原图本身就带透明缝时，穿透保护救不回来，用这个：数值越大，能补的缝越宽。太大会把手指之间等细小空隙也填上。":["Use this when the source already has transparent slits that Leak guard cannot recover. Higher values fill wider gaps, but too high also fills small real gaps such as between fingers.","元画像にもともと透明の筋がある場合、リーク防止では直せません。その時はこちら。値が大きいほど広い隙間を埋めますが、大きすぎると指の間のような本来の隙間も埋まります。","Используйте, если в исходнике уже есть прозрачные щели, которые защита не исправит. Чем больше значение, тем шире заливаемые зазоры; слишком большое заполнит и настоящие мелкие промежутки (например, между пальцами).","Úsalo cuando el original ya tenga rendijas transparentes que Anti-fugas no puede recuperar. Cuanto mayor el valor, más ancho el hueco que rellena; si es muy alto también tapa huecos reales pequeños (p. ej. entre dedos).","원본에 이미 투명한 틈이 있어 누출 방지로 복구되지 않을 때 사용하세요. 값이 클수록 넓은 틈을 메우지만, 너무 크면 손가락 사이 같은 실제 틈도 메워집니다."],"边缘平滑（像素）":["Edge smoothing (px)","エッジのぼかし（px）","Сглаживание края (px)","Suavizado de borde (px)","가장자리 부드럽게 (px)"],"去白边 / 黑边":["Remove halo","フチ除去（白／黒）","Убрать ореол","Quitar halo","헤일로 제거"],"边缘收缩（像素）":["Edge shrink (px)","エッジ縮小（px）","Сжатие края (px)","Contraer borde (px)","가장자리 축소 (px)"],"恢复默认参数":["Reset settings","設定をリセット","Сбросить настройки","Restablecer ajustes","설정 초기화"],"特效与调色":["Effects & colour","エフェクトと色調","Эффекты и цвет","Efectos y color","효과 및 색상"],"描边":["Outline","輪郭線","Обводка","Contorno","외곽선"],"加描边":["Add outline","輪郭線を付ける","Добавить обводку","Añadir contorno","외곽선 추가"],"描边颜色":["Outline colour","輪郭線の色","Цвет обводки","Color del contorno","외곽선 색"],"宽度（像素）":["Width (px)","幅（px）","Ширина (px)","Ancho (px)","너비 (px)"],"投影":["Shadow","影","Тень","Sombra","그림자"],"无投影":["No shadow","影なし","Без тени","Sin sombra","그림자 없음"],"柔和投影":["Soft shadow","ソフトな影","Мягкая тень","Sombra suave","부드러운 그림자"],"硬投影":["Hard shadow","ハードな影","Жёсткая тень","Sombra dura","선명한 그림자"],"投影颜色":["Shadow colour","影の色","Цвет тени","Color de la sombra","그림자 색"],"投影距离（像素）":["Shadow offset (px)","影の距離（px）","Смещение тени (px)","Desplazamiento (px)","그림자 거리 (px)"],"发光边":["Glow","グロー","Свечение","Resplandor","글로우"],"加发光":["Add glow","グローを付ける","Добавить свечение","Añadir resplandor","글로우 추가"],"发光颜色":["Glow colour","グローの色","Цвет свечения","Color del resplandor","글로우 색"],"发光范围（像素）":["Glow radius (px)","グローの範囲（px）","Радиус свечения (px)","Radio del resplandor (px)","글로우 범위 (px)"],"调色":["Colour","色調","Цвет","Color","색상"],"亮度":["Brightness","明るさ","Яркость","Brillo","밝기"],"饱和度":["Saturation","彩度","Насыщенность","Saturación","채도"],"整体透明度":["Overall opacity","全体の不透明度","Общая непрозрачность","Opacidad total","전체 불투명도"],"反相":["Invert","色反転","Инверсия","Invertir","반전"],"彩虹循环":["Rainbow cycle","レインボー循環","Радужный цикл","Ciclo arcoíris","무지개 순환"],"幽灵":["Ghost","ゴースト","Призрак","Fantasma","유령"],"手动修补":["Manual touch-up","手動修正","Ручная правка","Retoque manual","수동 보정"],"笔刷":["Brush","ブラシ","Кисть","Pincel","브러시"],"不使用":["Off","使わない","Выкл.","Desactivado","사용 안 함"],"擦除":["Erase","消去","Стереть","Borrar","지우기"],"恢复":["Restore","復元","Вернуть","Restaurar","복원"],"点一下，擦掉一整块相近的颜色":["Click to erase a whole block of similar colour","クリックで近い色のかたまりを消去","Щёлк — стереть весь участок похожего цвета","Clic para borrar todo un bloque de color similar","클릭하면 비슷한 색 덩어리를 지웁니다"],"魔棒擦除":["Wand erase","自動選択で消去","Палочка: стереть","Varita: borrar","마술봉 지우기"],"点一下，恢复一整块相近的颜色":["Click to restore a whole block of similar colour","クリックで近い色のかたまりを復元","Щёлк — вернуть весь участок похожего цвета","Clic para restaurar todo un bloque de color similar","클릭하면 비슷한 색 덩어리를 복원합니다"],"魔棒恢复":["Wand restore","自動選択で復元","Палочка: вернуть","Varita: restaurar","마술봉 복원"],"魔棒：在预览图上点一下，把点中的那一整块相近颜色擦掉（或恢复）。":["Magic wand: click the preview to erase (or restore) the whole block of similar colour you clicked.","自動選択：プレビューをクリックすると、クリックした近い色のかたまりをまとめて消去（または復元）します。","Волшебная палочка: щёлкните по превью, чтобы стереть (или вернуть) весь участок похожего цвета.","Varita mágica: haz clic en la vista previa para borrar (o restaurar) todo el bloque de color similar.","마술봉: 미리보기를 클릭하면 클릭한 비슷한 색 덩어리를 한 번에 지우거나 복원합니다."],"魔棒容差":["Wand tolerance","自動選択の許容値","Допуск палочки","Tolerancia de varita","마술봉 허용치"],"选区外扩（像素，盖住抗锯齿边）":["Grow selection (px, covers anti-aliased edges)","選択範囲の拡張（px、アンチエイリアスの縁用）","Расширение выделения (px, для сглаженных краёв)","Ampliar selección (px, cubre bordes suavizados)","선택 영역 확장 (px, 안티앨리어싱 가장자리용)"],"只选相连的区域（取消则选全图同色）":["Contiguous only (uncheck to pick that colour everywhere)","つながった領域のみ（解除すると全体の同色）","Только смежная область (снимите — весь цвет на кадре)","Solo zona contigua (desmarca para todo ese color)","이어진 영역만 (해제하면 전체 같은 색)"],"笔刷大小（像素）":["Brush size (px)","ブラシサイズ（px）","Размер кисти (px)","Tamaño del pincel (px)","브러시 크기 (px)"],"作用于所有帧":["Apply to all frames","全フレームに適用","Ко всем кадрам","Aplicar a todos los fotogramas","모든 프레임에 적용"],"清除手动修改":["Clear manual edits","手動修正を消去","Сбросить правки","Borrar retoques","수동 수정 지우기"],"时间轴":["Timeline","タイムライン","Таймлайн","Línea de tiempo","타임라인"],"播放方式":["Playback","再生方式","Воспроизведение","Reproducción","재생 방식"],"正放":["Forward","順再生","Вперёд","Normal","정방향"],"倒放":["Reverse","逆再生","Назад","Inversa","역방향"],"来回播放":["Ping-pong","往復再生","Туда-обратно","Ida y vuelta","왕복"],"抽帧":["Skip frames","コマ間引き","Прореживание","Saltar fotogramas","프레임 건너뛰기"],"保留全部帧":["Keep all frames","全フレーム保持","Все кадры","Todos los fotogramas","모든 프레임 유지"],"每 2 帧留 1 帧":["Keep 1 of every 2","2コマに1コマ残す","Каждый 2-й кадр","1 de cada 2","2프레임마다 1개"],"每 3 帧留 1 帧":["Keep 1 of every 3","3コマに1コマ残す","Каждый 3-й кадр","1 de cada 3","3프레임마다 1개"],"每 4 帧留 1 帧":["Keep 1 of every 4","4コマに1コマ残す","Каждый 4-й кадр","1 de cada 4","4프레임마다 1개"],"速度":["Speed","速度","Скорость","Velocidad","속도"],"取消勾选缩略图下方的方框，可以删除那一帧。抽帧会自动把留下的帧拉长，整体速度不变。":["Untick the box under a thumbnail to delete that frame. Skipping frames lengthens the remaining ones so overall speed stays the same.","サムネイル下のチェックを外すとそのフレームを削除できます。間引いた場合は残りのフレームが長くなり、全体の速さは変わりません。","Снимите галочку под миниатюрой, чтобы удалить кадр. При прореживании оставшиеся кадры удлиняются, общая скорость не меняется.","Desmarca la casilla bajo una miniatura para eliminar ese fotograma. Al saltar fotogramas, los restantes se alargan y la velocidad total no cambia.","썸네일 아래 체크를 해제하면 해당 프레임이 삭제됩니다. 프레임을 건너뛰면 남은 프레임이 길어져 전체 속도는 그대로입니다."],"输出背景":["Output background","出力の背景","Фон результата","Fondo de salida","출력 배경"],"透明":["Transparent","透明","Прозрачный","Transparente","투명"],"纯色":["Solid colour","単色","Сплошной цвет","Color sólido","단색"],"渐变":["Gradient","グラデーション","Градиент","Degradado","그라데이션"],"颜色一":["Colour 1","色1","Цвет 1","Color 1","색 1"],"颜色二":["Colour 2","色2","Цвет 2","Color 2","색 2"],"渐变方向":["Gradient direction","グラデーションの向き","Направление градиента","Dirección del degradado","그라데이션 방향"],"上到下":["Top to bottom","上から下","Сверху вниз","De arriba abajo","위에서 아래"],"左到右":["Left to right","左から右","Слева направо","De izquierda a derecha","왼쪽에서 오른쪽"],"把抠好的动图放到新背景上再导出。":["Place the cut-out animation on a new background before exporting.","切り抜いたアニメを新しい背景に載せて書き出します。","Поместите вырезанную анимацию на новый фон перед сохранением.","Coloca la animación recortada sobre un fondo nuevo antes de exportar.","배경을 제거한 애니메이션을 새 배경 위에 올려 내보냅니다."],"导出选项":["Export options","書き出し設定","Параметры экспорта","Opciones de exportación","내보내기 옵션"],"尺寸":["Size","サイズ","Размер","Tamaño","크기"],"导出尺寸":["Export size","書き出しサイズ","Размер экспорта","Tamaño de exportación","내보내기 크기"],"像素风放大":["Pixel-art scaling","ドット絵向け拡大","Пиксельное масштабирование","Escalado pixel art","픽셀아트 확대"],"裁掉透明边":["Trim transparent edges","透明な余白を切り詰める","Обрезать прозрачные края","Recortar bordes transparentes","투명 여백 자르기"],"留白":["Padding","余白","Отступ","Margen","여백"],"留白像素":["Padding pixels","余白ピクセル","Отступ в пикселях","Píxeles de margen","여백 픽셀"],"GIF 透明阈值":["GIF transparency threshold","GIF透過のしきい値","Порог прозрачности GIF","Umbral de transparencia GIF","GIF 투명도 임계값"],"目标大小":["Target size","目標サイズ","Целевой размер","Tamaño objetivo","목표 크기"],"目标大小 MB":["Target size in MB","目標サイズ（MB）","Целевой размер, МБ","Tamaño objetivo en MB","목표 크기(MB)"],"MB（0 为不限制，自动缩小尺寸）":["MB (0 = no limit; scales down automatically)","MB（0で無制限。自動で縮小）","МБ (0 — без ограничения; уменьшает размер автоматически)","MB (0 = sin límite; reduce el tamaño solo)","MB (0은 제한 없음, 자동으로 크기 축소)"],"GIF 抖动（渐变更平滑）":["GIF dithering (smoother gradients)","GIFディザ（グラデーションが滑らか）","Дизеринг GIF (плавнее градиенты)","Tramado GIF (degradados más suaves)","GIF 디더링 (그라데이션이 부드러움)"],"WebP 画质（100 为无损）":["WebP quality (100 = lossless)","WebP画質（100で可逆）","Качество WebP (100 — без потерь)","Calidad WebP (100 = sin pérdida)","WebP 품질 (100은 무손실)"],"精灵图列数":["Sprite columns","スプライトの列数","Столбцов в спрайт-листе","Columnas de sprites","스프라이트 열 수"],"自动":["Auto","自動","Авто","Auto","자동"],"导出格式":["Export format","書き出し形式","Формат экспорта","Formato de exportación","내보내기 형식"],"PNG 序列":["PNG sequence","PNG連番","PNG-кадры","Secuencia PNG","PNG 시퀀스"],"精灵图":["Sprite sheet","スプライトシート","Спрайт-лист","Hoja de sprites","스프라이트 시트"],"免费开源 · MIT 许可证 · 所有处理都在你的浏览器里完成":["Free & open source · MIT licence · everything is processed in your browser","無料・オープンソース · MITライセンス · 処理はすべてブラウザ内","Бесплатно и с открытым кодом · лицензия MIT · всё обрабатывается в вашем браузере","Gratis y de código abierto · licencia MIT · todo se procesa en tu navegador","무료 오픈소스 · MIT 라이선스 · 모든 처리는 브라우저에서 이뤄집니다"],"这不是有效的 GIF 文件":["This is not a valid GIF file","有効なGIFファイルではありません","Это не корректный файл GIF","Este no es un archivo GIF válido","올바른 GIF 파일이 아닙니다"],"GIF 尺寸无效":["Invalid GIF dimensions","GIFのサイズが不正です","Некорректный размер GIF","Dimensiones de GIF no válidas","GIF 크기가 올바르지 않습니다"],"这个 GIF 太大了（解码后超过 500MB），请先缩小尺寸或减少帧数":["This GIF is too large (over 500 MB once decoded). Please reduce its size or frame count first.","このGIFは大きすぎます（デコード後500MB超）。先にサイズかフレーム数を減らしてください。","Этот GIF слишком большой (после декодирования больше 500 МБ). Сначала уменьшите размер или число кадров.","Este GIF es demasiado grande (más de 500 MB al decodificar). Reduce antes su tamaño o fotogramas.","이 GIF는 너무 큽니다(디코딩 후 500MB 초과). 먼저 크기나 프레임 수를 줄여 주세요."],"没有读到任何画面，文件可能已损坏":["No image data found; the file may be corrupted","画像データが読み取れません。ファイルが壊れている可能性があります","Изображение не найдено, файл может быть повреждён","No se encontró ninguna imagen; el archivo puede estar dañado","이미지를 읽지 못했습니다. 파일이 손상되었을 수 있습니다"],"无法识别这个文件，目前支持 GIF、APNG、WebP、PNG、JPG":["Unrecognised file. Supported: GIF, APNG, WebP, PNG, JPG","このファイルは認識できません。対応形式：GIF・APNG・WebP・PNG・JPG","Файл не распознан. Поддерживаются: GIF, APNG, WebP, PNG, JPG","Archivo no reconocido. Compatibles: GIF, APNG, WebP, PNG, JPG","알 수 없는 파일입니다. 지원 형식: GIF, APNG, WebP, PNG, JPG"],"帧数太多（超过 1000 帧）":["Too many frames (over 1000)","フレーム数が多すぎます（1000超）","Слишком много кадров (больше 1000)","Demasiados fotogramas (más de 1000)","프레임이 너무 많습니다 (1000개 초과)"],"文件太大了，请先缩小尺寸或减少帧数":["File too large. Please reduce its size or frame count first.","ファイルが大きすぎます。先にサイズかフレーム数を減らしてください。","Файл слишком большой. Сначала уменьшите размер или число кадров.","Archivo demasiado grande. Reduce antes su tamaño o fotogramas.","파일이 너무 큽니다. 먼저 크기나 프레임 수를 줄여 주세요."],"当前浏览器无法读取动画，只载入了第一帧":["This browser cannot read the animation; only the first frame was loaded","このブラウザではアニメを読み込めないため、最初のフレームだけ読み込みました","Этот браузер не может прочитать анимацию, загружен только первый кадр","Este navegador no puede leer la animación; solo se cargó el primer fotograma","이 브라우저는 애니메이션을 읽을 수 없어 첫 프레임만 불러왔습니다"],"GIF：兼容性最好，但透明只有「有」和「没有」两档，边缘会有一点锯齿。":["GIF: most compatible, but transparency is on/off only, so edges look slightly jagged.","GIF：互換性は最高ですが、透明は「あり／なし」の2段階のみで、縁に少しギザギザが出ます。","GIF: самая широкая совместимость, но прозрачность только «есть/нет», поэтому края немного зубчатые.","GIF: la mayor compatibilidad, pero la transparencia es solo sí/no, así que los bordes salen algo dentados.","GIF: 호환성이 가장 좋지만 투명도가 있음/없음 두 단계뿐이라 가장자리가 약간 거칠어 보입니다."],"APNG：保留半透明边缘，画质最好。文件后缀是 .png，大多数浏览器和聊天软件能直接播放。":["APNG: keeps soft semi-transparent edges, best quality. The file ends in .png and plays in most browsers and chat apps.","APNG：半透明の縁を保てて画質は最良。拡張子は .png で、多くのブラウザやチャットアプリでそのまま再生できます。","APNG: сохраняет полупрозрачные края, лучшее качество. Файл с расширением .png воспроизводится в большинстве браузеров и мессенджеров.","APNG: conserva los bordes semitransparentes, la mejor calidad. El archivo termina en .png y se reproduce en la mayoría de navegadores y apps de chat.","APNG: 반투명 가장자리를 유지해 화질이 가장 좋습니다. 확장자는 .png이며 대부분의 브라우저와 메신저에서 바로 재생됩니다."],"WebP：体积通常比 APNG 小很多，同样保留半透明边缘。部分老软件不能播放。":["WebP: usually much smaller than APNG and also keeps semi-transparent edges. Some older software cannot play it.","WebP：通常APNGよりかなり小さく、半透明の縁も保てます。古いソフトでは再生できない場合があります。","WebP: обычно заметно меньше APNG и тоже сохраняет полупрозрачные края. Часть старых программ не воспроизводит.","WebP: suele pesar mucho menos que APNG y también conserva bordes semitransparentes. Algunos programas antiguos no lo reproducen.","WebP: 보통 APNG보다 훨씬 작고 반투명 가장자리도 유지합니다. 일부 오래된 소프트웨어에서는 재생되지 않습니다."],"PNG 序列：每帧一张透明 PNG，打包成 zip，附带 frames.json 记录每帧时长。适合导入视频或游戏引擎。":["PNG sequence: one transparent PNG per frame, zipped with frames.json holding each frame's duration. Good for video editors and game engines.","PNG連番：1コマ1枚の透過PNGをzipにまとめ、各コマの長さを記録した frames.json を同梱。動画編集やゲームエンジン向け。","PNG-кадры: по одному прозрачному PNG на кадр в zip, плюс frames.json с длительностью каждого кадра. Подходит для видеомонтажа и игровых движков.","Secuencia PNG: un PNG transparente por fotograma en un zip, con frames.json que guarda la duración de cada uno. Útil para editores de vídeo y motores de juego.","PNG 시퀀스: 프레임마다 투명 PNG 한 장을 zip으로 묶고, 각 프레임 길이를 담은 frames.json을 함께 넣습니다. 영상 편집이나 게임 엔진에 적합합니다."],"精灵图：把所有帧排成一张透明 PNG，适合做游戏。文件名里带有列数和行数。":["Sprite sheet: all frames laid out in one transparent PNG, handy for games. The file name includes the column and row count.","スプライトシート：全コマを1枚の透過PNGに並べます。ゲーム向け。ファイル名に列数と行数が入ります。","Спрайт-лист: все кадры в одном прозрачном PNG, удобно для игр. В имени файла указаны число столбцов и строк.","Hoja de sprites: todos los fotogramas en un solo PNG transparente, útil para juegos. El nombre del archivo incluye columnas y filas.","스프라이트 시트: 모든 프레임을 투명 PNG 한 장에 배치합니다. 게임용으로 좋으며 파일 이름에 열·행 수가 들어갑니다."],"处理中 {0}/{1}":["Processing {0}/{1}","処理中 {0}/{1}","Обработка {0}/{1}","Procesando {0}/{1}","처리 중 {0}/{1}"],"第 {0} / {1} 帧 · {2}ms":["Frame {0} / {1} · {2} ms","フレーム {0} / {1} · {2} ms","Кадр {0} / {1} · {2} мс","Fotograma {0} / {1} · {2} ms","프레임 {0} / {1} · {2}ms"],"至少要保留一帧":["Keep at least one frame","最低1フレームは残してください","Нужно оставить хотя бы один кадр","Debe quedar al menos un fotograma","최소 한 프레임은 남겨야 합니다"],"{0}  ·  {1}×{2}  ·  {3} 帧  ·  {4} 秒":["{0}  ·  {1}×{2}  ·  {3} frames  ·  {4} s","{0}  ·  {1}×{2}  ·  {3} フレーム  ·  {4} 秒","{0}  ·  {1}×{2}  ·  {3} кадров  ·  {4} с","{0}  ·  {1}×{2}  ·  {3} fotogramas  ·  {4} s","{0}  ·  {1}×{2}  ·  {3}프레임  ·  {4}초"],"读取失败":["Failed to read the file","読み込みに失敗しました","Не удалось прочитать файл","No se pudo leer el archivo","파일을 읽지 못했습니다"],"保留第 {0} 帧":["Keep frame {0}","フレーム {0} を残す","Оставить кадр {0}","Conservar fotograma {0}","프레임 {0} 유지"],"文件超过 80MB，请先压缩后再试":["File is over 80 MB. Please compress it first.","ファイルが80MBを超えています。先に圧縮してください。","Файл больше 80 МБ. Сначала сожмите его.","El archivo supera los 80 MB. Comprímelo primero.","파일이 80MB를 넘습니다. 먼저 압축해 주세요."],"正在读取…":["Reading…","読み込み中…","Чтение…","Leyendo…","읽는 중…"],"正在生成示例…":["Generating sample…","サンプルを生成中…","Создание образца…","Generando ejemplo…","예시 생성 중…"],"示例-白底":["sample-white","サンプル-白背景","sample-white","sample-white","sample-white"],"示例-黑底":["sample-black","サンプル-黒背景","sample-black","sample-black","sample-black"],"无损":["lossless","可逆","без потерь","sin pérdida","무손실"],"已恢复默认参数":["Settings reset","設定をリセットしました","Настройки сброшены","Ajustes restablecidos","설정을 초기화했습니다"],"在预览图上点一下要去掉的背景色":["Click the background colour on the preview","プレビュー上で消したい背景色をクリック","Щёлкните по цвету фона на превью","Haz clic en el color de fondo de la vista previa","미리보기에서 지울 배경색을 클릭하세요"],"在预览图上点一下要处理的色块":["Click the colour block on the preview","プレビュー上で処理したい色の部分をクリック","Щёлкните по нужному участку на превью","Haz clic en el bloque de color de la vista previa","미리보기에서 처리할 색 영역을 클릭하세요"],"没有手动修改可清除":["No manual edits to clear","消去する手動修正はありません","Нет ручных правок для сброса","No hay retoques que borrar","지울 수동 수정이 없습니다"],"已清除手动修改，可以撤销":["Manual edits cleared (you can undo)","手動修正を消去しました（元に戻せます）","Правки сброшены (можно отменить)","Retoques borrados (puedes deshacer)","수동 수정을 지웠습니다 (실행 취소 가능)"],"点到的是已经透明的地方":["That spot is already transparent","そこはすでに透明です","Это место уже прозрачное","Ese punto ya es transparente","이미 투명한 곳입니다"],"已擦除这块颜色{0}，Ctrl+Z 可撤销":["Erased that colour block{0}; Ctrl+Z to undo","その色の部分を消去しました{0}。Ctrl+Z で元に戻せます","Участок стёрт{0}; Ctrl+Z — отмена","Bloque de color borrado{0}; Ctrl+Z para deshacer","해당 색 영역을 지웠습니다{0}. Ctrl+Z로 취소 가능"],"已恢复这块颜色{0}，Ctrl+Z 可撤销":["Restored that colour block{0}; Ctrl+Z to undo","その色の部分を復元しました{0}。Ctrl+Z で元に戻せます","Участок возвращён{0}; Ctrl+Z — отмена","Bloque de color restaurado{0}; Ctrl+Z para deshacer","해당 색 영역을 복원했습니다{0}. Ctrl+Z로 취소 가능"],"（{0} 帧）":[" ({0} frames)","（{0} フレーム）"," ({0} кадров)"," ({0} fotogramas)"," ({0}프레임)"],"这个位置没有选中任何像素":["No pixels were selected there","そこでは何も選択されませんでした","В этой точке ничего не выделено","No se seleccionó ningún píxel ahí","그 위치에서는 선택된 픽셀이 없습니다"],"选了多个文件，只载入第一个。要一次处理多个，请用「批量处理」":["Several files selected; only the first was loaded. Use “Batch” to process many at once.","複数のファイルが選ばれたため、最初の1つだけ読み込みました。まとめて処理するには「一括処理」を使ってください。","Выбрано несколько файлов — загружен только первый. Для нескольких сразу используйте «Пакетная обработка».","Seleccionaste varios archivos; solo se cargó el primero. Para varios a la vez usa «Procesar por lotes».","여러 파일을 선택해 첫 번째만 불러왔습니다. 한 번에 처리하려면 「일괄 처리」를 사용하세요."],"输出 {0}×{1}{2} · {3} 帧 · {4} 秒":["Output {0}×{1}{2} · {3} frames · {4} s","出力 {0}×{1}{2} · {3} フレーム · {4} 秒","Результат {0}×{1}{2} · {3} кадров · {4} с","Salida {0}×{1}{2} · {3} fotogramas · {4} s","출력 {0}×{1}{2} · {3}프레임 · {4}초"],"（裁边前）":[" (before trim)","（トリミング前）"," (до обрезки)"," (antes de recortar)"," (자르기 전)"],"图片编码失败":["Image encoding failed","画像のエンコードに失敗しました","Не удалось закодировать изображение","Falló la codificación de la imagen","이미지 인코딩에 실패했습니다"],"动图":["animation","アニメ","animation","animation","animation"],"编码 GIF {0}/{1}":["Encoding GIF {0}/{1}","GIFをエンコード中 {0}/{1}","Кодирование GIF {0}/{1}","Codificando GIF {0}/{1}","GIF 인코딩 {0}/{1}"],"编码 APNG {0}/{1}":["Encoding APNG {0}/{1}","APNGをエンコード中 {0}/{1}","Кодирование APNG {0}/{1}","Codificando APNG {0}/{1}","APNG 인코딩 {0}/{1}"],"编码 WebP {0}/{1}":["Encoding WebP {0}/{1}","WebPをエンコード中 {0}/{1}","Кодирование WebP {0}/{1}","Codificando WebP {0}/{1}","WebP 인코딩 {0}/{1}"],"打包 {0}/{1}":["Packing {0}/{1}","パッキング中 {0}/{1}","Упаковка {0}/{1}","Empaquetando {0}/{1}","압축 중 {0}/{1}"],"_抠底":["_cutout","_cutout","_cutout","_cutout","_cutout"],"_序列帧":["_frames","_frames","_frames","_frames","_frames"],"_精灵图_":["_sprite_","_sprite_","_sprite_","_sprite_","_sprite_"],"浏览器生成的 PNG 格式不一致，请改用 PNG 序列":["The browser produced inconsistent PNG data. Please use PNG sequence instead.","ブラウザが生成したPNGの形式が一致しません。PNG連番を使ってください。","Браузер создал PNG с несовпадающими параметрами. Используйте PNG-кадры.","El navegador generó PNG inconsistentes. Usa la secuencia PNG.","브라우저가 만든 PNG 형식이 일치하지 않습니다. PNG 시퀀스를 사용하세요."],"这个浏览器不能编码 WebP，请改用 APNG 或 GIF":["This browser cannot encode WebP. Please use APNG or GIF.","このブラウザはWebPをエンコードできません。APNGかGIFを使ってください。","Этот браузер не умеет кодировать WebP. Используйте APNG или GIF.","Este navegador no puede codificar WebP. Usa APNG o GIF.","이 브라우저는 WebP를 인코딩할 수 없습니다. APNG나 GIF를 사용하세요."],"WebP 编码结果无法识别":["The WebP output could not be parsed","WebPの出力を解析できませんでした","Не удалось разобрать результат WebP","No se pudo interpretar la salida WebP","WebP 결과를 해석하지 못했습니다"],"精灵图太大（{0}×{1}），请减少列数、帧数或尺寸":["Sprite sheet too large ({0}×{1}). Reduce columns, frames or size.","スプライトシートが大きすぎます（{0}×{1}）。列数・フレーム数・サイズを減らしてください。","Спрайт-лист слишком велик ({0}×{1}). Уменьшите число столбцов, кадров или размер.","La hoja de sprites es demasiado grande ({0}×{1}). Reduce columnas, fotogramas o tamaño.","스프라이트 시트가 너무 큽니다({0}×{1}). 열 수, 프레임 수 또는 크기를 줄이세요."],"精灵图 {0} 列 × {1} 行，单帧 {2}×{3}":["Sprite sheet: {0} columns × {1} rows, {2}×{3} per frame","スプライトシート：{0} 列 × {1} 行、1コマ {2}×{3}","Спрайт-лист: {0} столбцов × {1} строк, кадр {2}×{3}","Hoja de sprites: {0} columnas × {1} filas, {2}×{3} por fotograma","스프라이트 시트: {0}열 × {1}행, 프레임당 {2}×{3}"],"处理中":["Processing","処理中","Обработка","Procesando","처리 중"],"输出太大了（{0}×{1}，{2} 帧），请缩小尺寸或减少帧数":["Output too large ({0}×{1}, {2} frames). Reduce the size or frame count.","出力が大きすぎます（{0}×{1}、{2} フレーム）。サイズかフレーム数を減らしてください。","Результат слишком велик ({0}×{1}, {2} кадров). Уменьшите размер или число кадров.","La salida es demasiado grande ({0}×{1}, {2} fotogramas). Reduce el tamaño o los fotogramas.","출력이 너무 큽니다({0}×{1}, {2}프레임). 크기나 프레임 수를 줄이세요."],"没能压到 {0} MB，当前 {1}。可以试试抽帧或关掉抖动":["Could not get under {0} MB (now {1}). Try skipping frames or turning off dithering.","{0} MB まで小さくできませんでした（現在 {1}）。コマ間引きやディザのオフを試してください。","Не удалось уложиться в {0} МБ (сейчас {1}). Попробуйте прореживание кадров или отключите дизеринг.","No se pudo bajar de {0} MB (ahora {1}). Prueba a saltar fotogramas o desactivar el tramado.","{0}MB 이하로 줄이지 못했습니다 (현재 {1}). 프레임 건너뛰기나 디더링 끄기를 시도해 보세요."],"为了达到目标大小，尺寸缩到了 {0}%（{1}×{2}）":["To hit the target size, the output was scaled to {0}% ({1}×{2})","目標サイズに収めるため、{0}%（{1}×{2}）に縮小しました","Чтобы уложиться в целевой размер, результат уменьшен до {0}% ({1}×{2})","Para llegar al tamaño objetivo, la salida se redujo al {0}% ({1}×{2})","목표 크기에 맞추려고 {0}%({1}×{2})로 축소했습니다"],"已保存 {0}（{1}）":["Saved {0} ({1})","{0} を保存しました（{1}）","Сохранено: {0} ({1})","Guardado {0} ({1})","{0} 저장됨 ({1})"],"已取消保存":["Save cancelled","保存をキャンセルしました","Сохранение отменено","Guardado cancelado","저장이 취소되었습니다"],"保存失败：{0}":["Save failed: {0}","保存に失敗しました：{0}","Не удалось сохранить: {0}","Error al guardar: {0}","저장 실패: {0}"],"未知原因":["unknown reason","不明な原因","неизвестная причина","motivo desconocido","알 수 없는 이유"],"当前环境不支持保存文件，请换个浏览器打开":["Saving files is not supported here. Please open this page in another browser.","この環境ではファイルを保存できません。別のブラウザで開いてください。","Здесь нельзя сохранять файлы. Откройте страницу в другом браузере.","Este entorno no permite guardar archivos. Abre la página en otro navegador.","이 환경에서는 파일을 저장할 수 없습니다. 다른 브라우저에서 열어 주세요."],"已导出 {0}（{1}）":["Exported {0} ({1})","{0} を書き出しました（{1}）","Экспортировано: {0} ({1})","Exportado {0} ({1})","{0} 내보냄 ({1})"],"正在导出…":["Exporting…","書き出し中…","Экспорт…","Exportando…","내보내는 중…"],"导出 {0}":["Export {0}","{0} を書き出す","Сохранить {0}","Exportar {0}","{0} 내보내기"],"导出失败：{0}":["Export failed: {0}","書き出しに失敗しました：{0}","Ошибка экспорта: {0}","Error al exportar: {0}","내보내기 실패: {0}"],"没有找到可处理的图片（支持 GIF、APNG、WebP、PNG、JPG）":["No usable images found (GIF, APNG, WebP, PNG, JPG are supported)","処理できる画像が見つかりません（GIF・APNG・WebP・PNG・JPG に対応）","Подходящих изображений не найдено (поддерживаются GIF, APNG, WebP, PNG, JPG)","No se encontraron imágenes válidas (compatibles: GIF, APNG, WebP, PNG, JPG)","처리할 수 있는 이미지가 없습니다 (GIF, APNG, WebP, PNG, JPG 지원)"],"批量 {0}/{1}：{2}":["Batch {0}/{1}: {2}","一括 {0}/{1}：{2}","Пакет {0}/{1}: {2}","Lote {0}/{1}: {2}","일괄 {0}/{1}: {2}"],"失败":["failed","失敗","ошибка","error","실패"],"{0}（{1}）":["{0} ({1})","{0}（{1}）","{0} ({1})","{0} ({1})","{0} ({1})"],"；":["; ","；","; ","; ","; "],"批量处理失败：{0}":["Batch failed: {0}","一括処理に失敗しました：{0}","Пакетная обработка не удалась: {0}","Falló el lote: {0}","일괄 처리 실패: {0}"],"批量抠底_{0}个文件":["batch-cutout_{0}-files","一括処理_{0}ファイル","batch-cutout_{0}-files","batch-cutout_{0}-files","batch-cutout_{0}-files"],"{0} 个文件失败：{1}":["{0} file(s) failed: {1}","{0} 個のファイルが失敗：{1}","Ошибок: {0}. {1}","{0} archivo(s) fallaron: {1}","{0}개 파일 실패: {1}"],"这个浏览器不能编码 WebP":["This browser cannot encode WebP","このブラウザはWebPをエンコードできません","Этот браузер не умеет кодировать WebP","Este navegador no puede codificar WebP","이 브라우저는 WebP를 인코딩할 수 없습니다"]};
+let LANG='zh-CN',infoState=null;
+function t(k){
+  let s=k;
+  if(LANG!=='zh-CN'){const e=DICT[k];if(e&&e[LANG_IDX[LANG]]!==undefined)s=e[LANG_IDX[LANG]];}
+  if(arguments.length>1){const a=arguments;s=s.replace(/\{(\d+)\}/g,(m,i)=>a[+i+1]);}
+  return s;
+}
+function pickLang(){
+  try{const q=new URLSearchParams(location.search).get('lang');if(q&&LANGS.some(l=>l[0]===q))return q;}catch(e){}
+  try{const v=localStorage.getItem('gif-cutout-lang');if(v&&LANGS.some(l=>l[0]===v))return v;}catch(e){}
+  const list=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||'en'];
+  const map={zh:'zh-CN',en:'en',ja:'ja',ru:'ru',es:'es',ko:'ko'};
+  for(const x of list){const m=map[String(x).toLowerCase().slice(0,2)];if(m)return m;}
+  return 'en';
+}
+const attrOrig=new WeakMap();
+function applyStatic(){
+  const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:n=>{const p=n.parentElement;return !p||p.closest('script,style,[data-skip]')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
+  let n;
+  while((n=w.nextNode())){
+    if(n.__zh===undefined){const m=n.nodeValue.match(/^(\s*)([\s\S]*?)(\s*)$/);n.__zh=m[2];n.__pre=m[1];n.__post=m[3];}
+    if(n.__zh)n.nodeValue=n.__pre+t(n.__zh)+n.__post;
+  }
+  document.querySelectorAll('[title],[aria-label],[placeholder]').forEach(el=>{
+    if((el.parentElement&&el.parentElement.closest('[data-skip]'))||el.id==='lang')return;
+    let o=attrOrig.get(el);if(!o){o={};attrOrig.set(el,o);}
+    for(const a of ['title','aria-label','placeholder']){
+      if(!el.hasAttribute(a))continue;
+      if(o[a]===undefined)o[a]=el.getAttribute(a);
+      el.setAttribute(a,t(o[a]));
+    }
+  });
+  document.title=t('GIF 抠底台');
+  document.documentElement.lang=LANG;
+}
+function renderInfo(){
+  if(!infoState)return;
+  const i=infoState;
+  $('#info').textContent=t('{0}  ·  {1}×{2}  ·  {3} 帧  ·  {4} 秒',i.name,i.W,i.H,i.n,(i.total/1000).toFixed(2));
+}
+function applyLang(lang,save){
+  LANG=lang;
+  if(save){try{localStorage.setItem('gif-cutout-lang',lang);}catch(e){}}
+  applyStatic();
+  $('#lang').value=lang;
+  $('#play').textContent=t(playing?'暂停':'播放');
+  renderInfo();
+  if(typeof setFmt==='function')setFmt(V.fmt);
+  if(G){
+    strip.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.setAttribute('aria-label',t('保留第 {0} 帧',+cb.dataset.i+1)));
+    readControls();draw();updateDock();
+  }
+}
+
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const sleep0=()=>new Promise(r=>setTimeout(r,0));
+
+/* ============ 小工具：字节缓冲、CRC32、PNG 块、ZIP ============ */
+class ByteBuf{
+  constructor(cap){this.a=new Uint8Array(cap||1024);this.n=0;}
+  push(b){if(this.n===this.a.length){const t=new Uint8Array(this.a.length*2);t.set(this.a);this.a=t;}this.a[this.n++]=b;}
+  u16(v){this.push(v&255);this.push((v>>8)&255);}
+  str(s){for(let i=0;i<s.length;i++)this.push(s.charCodeAt(i));}
+  out(){return this.a.subarray(0,this.n);}
+}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(u8){let c=0xFFFFFFFF;for(let i=0;i<u8.length;i++)c=CRC[(c^u8[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function pngChunk(type,data){
+  const out=new Uint8Array(12+data.length),dv=new DataView(out.buffer);
+  dv.setUint32(0,data.length);
+  for(let i=0;i<4;i++)out[4+i]=type.charCodeAt(i);
+  out.set(data,8);
+  dv.setUint32(8+data.length,crc32(out.subarray(4,8+data.length)));
+  return out;
+}
+function makeZip(files){
+  const enc=new TextEncoder(),parts=[],cen=[];let off=0,cenSize=0;
+  for(const f of files){
+    const name=enc.encode(f.name),crc=crc32(f.data),size=f.data.length;
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);
+    lh.setUint16(8,0,true);lh.setUint16(10,0,true);lh.setUint16(12,0x21,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,size,true);lh.setUint32(22,size,true);
+    lh.setUint16(26,name.length,true);lh.setUint16(28,0,true);
+    parts.push(lh,name,f.data);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);
+    ch.setUint16(10,0,true);ch.setUint16(12,0,true);ch.setUint16(14,0x21,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,size,true);ch.setUint32(24,size,true);
+    ch.setUint16(28,name.length,true);ch.setUint16(30,0,true);ch.setUint16(32,0,true);
+    ch.setUint16(34,0,true);ch.setUint16(36,0,true);ch.setUint32(38,0,true);ch.setUint32(42,off,true);
+    cen.push(ch,name);cenSize+=46+name.length;
+    off+=30+name.length+size;
+  }
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(4,0,true);end.setUint16(6,0,true);
+  end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);
+  end.setUint32(12,cenSize,true);end.setUint32(16,off,true);end.setUint16(20,0,true);
+  return new Blob(parts.concat(cen,[end]),{type:'application/zip'});
+}
+
+/* ============ GIF 解码（自写：局部帧、disposal、隔行、透明） ============ */
+function decodeGIF(buf){
+  const d=new Uint8Array(buf);let p=0;
+  const rd=n=>{let s='';for(let i=0;i<n;i++)s+=String.fromCharCode(d[p++]);return s;};
+  const sig=rd(6);
+  if(sig!=='GIF87a'&&sig!=='GIF89a')throw new Error(t('这不是有效的 GIF 文件'));
+  const W=d[p]|(d[p+1]<<8);p+=2;const H=d[p]|(d[p+1]<<8);p+=2;
+  const fl=d[p++];p+=2;
+  if(!W||!H)throw new Error(t('GIF 尺寸无效'));
+  let gct=null;
+  if(fl&0x80){const n=2<<(fl&7);gct=d.subarray(p,p+n*3);p+=n*3;}
+  const frames=[];let gce=null,loop=0,bytes=0;
+  const cur=new Uint8ClampedArray(W*H*4);
+  const skipSub=()=>{while(p<d.length){const n=d[p++];if(n===0)break;p+=n;}};
+  while(p<d.length){
+    const b=d[p++];
+    if(b===0x3B)break;
+    if(b===0x21){
+      const label=d[p++];
+      if(label===0xF9){
+        const size=d[p++];const pk=d[p],dl=d[p+1]|(d[p+2]<<8),ti=d[p+3];
+        gce={disposal:(pk>>2)&7,trans:(pk&1)?ti:-1,delay:dl};
+        p+=size;skipSub();
+      }else if(label===0xFF){
+        const n=d[p++];const app=rd(n);
+        if(app.indexOf('NETSCAPE')===0&&d[p]>=3&&d[p+1]===1)loop=d[p+2]|(d[p+3]<<8);
+        skipSub();
+      }else skipSub();
+    }else if(b===0x2C){
+      const x0=d[p]|(d[p+1]<<8),y0=d[p+2]|(d[p+3]<<8),w=d[p+4]|(d[p+5]<<8),h=d[p+6]|(d[p+7]<<8),pk=d[p+8];p+=9;
+      let ct=gct;
+      if(pk&0x80){const n=2<<(pk&7);ct=d.subarray(p,p+n*3);p+=n*3;}
+      const inter=!!(pk&0x40);const minCode=d[p++];
+      let total=0,q=p;
+      while(q<d.length){const n=d[q++];if(n===0)break;total+=n;q+=n;}
+      const data=new Uint8Array(total);let o=0;q=p;
+      while(q<d.length){const n=d[q++];if(n===0)break;data.set(d.subarray(q,q+n),o);o+=n;q+=n;}
+      p=q;
+      const idx=lzwDecode(minCode,data,w*h);
+      const disp=gce?gce.disposal:0,tr=gce?gce.trans:-1;
+      const saved=disp===3?cur.slice():null;
+      let rows=null;
+      if(inter){rows=[];for(const st of [[0,8],[4,8],[2,4],[1,2]])for(let y=st[0];y<h;y+=st[1])rows.push(y);}
+      for(let ry=0;ry<h;ry++){
+        const y=y0+(rows?rows[ry]:ry);if(y>=H)continue;
+        for(let rx=0;rx<w;rx++){
+          const x=x0+rx;if(x>=W)break;
+          const ci=idx[ry*w+rx];if(ci===tr)continue;
+          const k=(y*W+x)*4,c=ci*3;
+          if(!ct||c+2>=ct.length){cur[k]=0;cur[k+1]=0;cur[k+2]=0;}
+          else{cur[k]=ct[c];cur[k+1]=ct[c+1];cur[k+2]=ct[c+2];}
+          cur[k+3]=255;
+        }
+      }
+      let ms=(gce?gce.delay:0)*10;if(ms<=10)ms=100;
+      bytes+=W*H*4;
+      if(bytes>520*1024*1024)throw new Error(t('这个 GIF 太大了（解码后超过 500MB），请先缩小尺寸或减少帧数'));
+      frames.push({data:cur.slice(),delay:ms});
+      if(disp===2){
+        for(let y=y0;y<Math.min(H,y0+h);y++)for(let x=x0;x<Math.min(W,x0+w);x++){const k=(y*W+x)*4;cur[k]=cur[k+1]=cur[k+2]=cur[k+3]=0;}
+      }else if(disp===3&&saved)cur.set(saved);
+      gce=null;
+    }else if(b===0)continue;
+    else break;
+  }
+  if(!frames.length)throw new Error(t('没有读到任何画面，文件可能已损坏'));
+  return {W,H,frames,loop};
+}
+function lzwDecode(minCode,data,npix){
+  const out=new Uint8Array(npix);
+  if(minCode<2||minCode>8)return out;
+  const clear=1<<minCode,eoi=clear+1;
+  let size=minCode+1,mask=(1<<size)-1,next=eoi+1;
+  const prefix=new Uint16Array(4096),suffix=new Uint8Array(4096),stack=new Uint8Array(4097);
+  let bits=0,nb=0,pos=0,o=0,prev=-1,first=0;
+  while(o<npix){
+    while(nb<size){if(pos>=data.length)return out;bits|=data[pos++]<<nb;nb+=8;}
+    const code=bits&mask;bits>>=size;nb-=size;
+    if(code===clear){size=minCode+1;mask=(1<<size)-1;next=eoi+1;prev=-1;continue;}
+    if(code===eoi)break;
+    if(prev===-1){if(code>=clear)break;out[o++]=code;prev=code;first=code;continue;}
+    if(code>next)break;
+    let sp=0,c=code;
+    if(code>=next){stack[sp++]=first;c=prev;}
+    while(c>=clear){stack[sp++]=suffix[c];c=prefix[c];}
+    first=c;stack[sp++]=c;
+    if(next<4096){prefix[next]=prev;suffix[next]=first;next++;if(next===(1<<size)&&size<12){size++;mask=(1<<size)-1;}}
+    while(sp>0&&o<npix)out[o++]=stack[--sp];
+    prev=code;
+  }
+  return out;
+}
+
+/* ============ 其他格式解码：APNG / WebP / PNG / JPG（借助浏览器） ============ */
+function sniff(buf){
+  const u=new Uint8Array(buf,0,Math.min(16,buf.byteLength));
+  if(u[0]===0x47&&u[1]===0x49&&u[2]===0x46)return 'image/gif';
+  if(u[0]===0x89&&u[1]===0x50&&u[2]===0x4E&&u[3]===0x47)return 'image/png';
+  if(u[0]===0xFF&&u[1]===0xD8)return 'image/jpeg';
+  if(u[0]===0x52&&u[1]===0x49&&u[2]===0x46&&u[3]===0x46&&u[8]===0x57&&u[9]===0x45&&u[10]===0x42&&u[11]===0x50)return 'image/webp';
+  return '';
+}
+async function decodeAny(file){
+  const buf=await file.arrayBuffer(),type=sniff(buf);
+  if(type==='image/gif')return decodeGIF(buf);
+  if(!type)throw new Error(t('无法识别这个文件，目前支持 GIF、APNG、WebP、PNG、JPG'));
+  const frames=[],c=document.createElement('canvas'),x=c.getContext('2d',{willReadFrequently:true});
+  let W=0,H=0;
+  if('ImageDecoder' in window){
+    try{
+      const dec=new ImageDecoder({data:buf,type});
+      await dec.tracks.ready;
+      const n=dec.tracks.selectedTrack.frameCount;
+      if(n>1000)throw new Error(t('帧数太多（超过 1000 帧）'));
+      for(let i=0;i<n;i++){
+        const r=await dec.decode({frameIndex:i}),im=r.image;
+        if(!W){W=im.displayWidth;H=im.displayHeight;c.width=W;c.height=H;}
+        x.clearRect(0,0,W,H);x.drawImage(im,0,0);
+        const id=x.getImageData(0,0,W,H);
+        frames.push({data:new Uint8ClampedArray(id.data),delay:Math.max(20,Math.round((im.duration||100000)/1000))});
+        im.close();
+        if(frames.length*W*H*4>520*1024*1024)throw new Error(t('文件太大了，请先缩小尺寸或减少帧数'));
+      }
+      dec.close();
+      if(frames.length)return {W,H,frames,loop:0};
+    }catch(e){if(frames.length>1)throw e;frames.length=0;}
+  }
+  const bmp=await createImageBitmap(new Blob([buf],{type}));
+  W=bmp.width;H=bmp.height;c.width=W;c.height=H;x.drawImage(bmp,0,0);bmp.close();
+  const id=x.getImageData(0,0,W,H);
+  return {W,H,frames:[{data:new Uint8ClampedArray(id.data),delay:100}],loop:0,note:(type==='image/webp'||type==='image/png')?t('当前浏览器无法读取动画，只载入了第一帧'):''};
+}
+
+/* ============ GIF 编码（保留主色的调色板 + LZW + 透明 + 包围盒裁剪） ============ */
+function lzwEncode(idx,minCode){
+  const clear=1<<minCode,eoi=clear+1;
+  let size=minCode+1,next=eoi+1,cur=0,nb=0;
+  const out=new ByteBuf((idx.length>>1)+256);
+  let table=new Map();
+  const emit=c=>{cur|=c<<nb;nb+=size;while(nb>=8){out.push(cur&255);cur>>>=8;nb-=8;}};
+  emit(clear);
+  let prefix=idx[0];
+  for(let i=1;i<idx.length;i++){
+    const k=idx[i],key=(prefix<<8)|k,hit=table.get(key);
+    if(hit!==undefined){prefix=hit;continue;}
+    emit(prefix);
+    if(next===4096){emit(clear);table=new Map();next=eoi+1;size=minCode+1;}
+    else{if(next>=(1<<size))size++;table.set(key,next++);}
+    prefix=k;
+  }
+  emit(prefix);emit(eoi);
+  if(nb>0)out.push(cur&255);
+  return out.out();
+}
+function buildPalette(arrs,cut){
+  const cnt=new Uint32Array(32768),sr=new Float64Array(32768),sg=new Float64Array(32768),sb=new Float64Array(32768);
+  let total=0;for(const a of arrs)total+=a.length>>2;
+  const step=Math.max(1,Math.floor(total/300000));
+  for(const a of arrs){
+    for(let i=0,n=a.length>>2;i<n;i+=step){
+      const j=i*4;if(a[j+3]<cut)continue;
+      const r=a[j],g=a[j+1],b=a[j+2],k=((r>>3)<<10)|((g>>3)<<5)|(b>>3);
+      cnt[k]++;sr[k]+=r;sg[k]+=g;sb[k]+=b;
+    }
+  }
+  const ar=new Float32Array(32768),ag=new Float32Array(32768),ab=new Float32Array(32768),bins=[];
+  for(let k=0;k<32768;k++)if(cnt[k]){bins.push(k);ar[k]=sr[k]/cnt[k];ag[k]=sg[k]/cnt[k];ab[k]=sb[k]/cnt[k];}
+  if(!bins.length)return [[0,0,0]];
+  const mk=list=>{
+    let mn=[255,255,255],mx=[0,0,0],tot=0;
+    for(const k of list){
+      tot+=cnt[k];const c=[ar[k],ag[k],ab[k]];
+      for(let i=0;i<3;i++){if(c[i]<mn[i])mn[i]=c[i];if(c[i]>mx[i])mx[i]=c[i];}
+    }
+    const rg=[mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]];let ax=0;
+    if(rg[1]>rg[ax])ax=1;if(rg[2]>rg[ax])ax=2;
+    return {list,tot,ax,range:rg[ax]};
+  };
+  let sampled=0;for(const k of bins)sampled+=cnt[k];
+  const anchors=bins.filter(k=>cnt[k]>sampled*0.004).sort((p,q)=>cnt[q]-cnt[p]).slice(0,24);
+  const anchorSet=new Set(anchors);
+  const rest=bins.filter(k=>!anchorSet.has(k));
+  const pal=anchors.map(k=>[Math.round(sr[k]/cnt[k]),Math.round(sg[k]/cnt[k]),Math.round(sb[k]/cnt[k])]);
+  if(!rest.length)return pal;
+  const limit=255-pal.length;
+  let boxes=[mk(rest)];
+  while(boxes.length<limit){
+    let bi=-1,bs=0;
+    for(let i=0;i<boxes.length;i++){const b=boxes[i];if(b.list.length<2)continue;const s=b.range*Math.sqrt(b.tot);if(s>bs){bs=s;bi=i;}}
+    if(bi<0)break;
+    const b=boxes[bi],ch=b.ax===0?ar:b.ax===1?ag:ab;
+    const l=b.list.slice().sort((p,q)=>ch[p]-ch[q]);
+    let acc=0,m=0;const half=b.tot/2;
+    for(;m<l.length-1;m++){acc+=cnt[l[m]];if(acc>=half)break;}
+    if(m>l.length-2)m=l.length-2;
+    boxes.splice(bi,1,mk(l.slice(0,m+1)),mk(l.slice(m+1)));
+  }
+  for(const b of boxes){
+    let r=0,g=0,bl=0,t=0;
+    for(const k of b.list){r+=sr[k];g+=sg[k];bl+=sb[k];t+=cnt[k];}
+    if(t>0)pal.push([Math.round(r/t),Math.round(g/t),Math.round(bl/t)]);
+  }
+  return pal;
+}
+async function encodeGIF(frames,W,H,delaysMs,cut,dither,onProg){
+  const uniq=[...new Set(frames)];
+  const pal=buildPalette(uniq,cut);
+  const TR=255;
+  const lut=new Int16Array(32768).fill(-1);
+  const near=key=>{
+    let v=lut[key];if(v>=0)return v;
+    const r=((key>>10)&31)*8+4,g=((key>>5)&31)*8+4,b=(key&31)*8+4;
+    let best=0,bd=1e18;
+    for(let i=0;i<pal.length;i++){const p=pal[i],dr=p[0]-r,dg=p[1]-g,db=p[2]-b,dd=dr*dr+dg*dg+db*db;if(dd<bd){bd=dd;best=i;}}
+    lut[key]=best;return best;
+  };
+  const head=new ByteBuf(1024);
+  head.str('GIF89a');head.u16(W);head.u16(H);head.push(0xF7);head.push(0);head.push(0);
+  for(let i=0;i<256;i++){const c=pal[i]||[0,0,0];head.push(c[0]);head.push(c[1]);head.push(c[2]);}
+  head.push(0x21);head.push(0xFF);head.push(11);head.str('NETSCAPE2.0');head.push(3);head.push(1);head.u16(0);head.push(0);
+  const parts=[head.out()];
+  const n=W*H;const e0=new Float32Array((W+2)*3),e1=new Float32Array((W+2)*3);
+  for(let f=0;f<frames.length;f++){
+    const a=frames[f],idx=new Uint8Array(n);
+    if(dither){e0.fill(0);e1.fill(0);}
+    for(let y=0;y<H;y++){
+      let ce=e0,ne=e1;if(y&1){ce=e1;ne=e0;}
+      if(dither)ne.fill(0);
+      for(let x=0;x<W;x++){
+        const i=y*W+x,j=i*4;
+        if(a[j+3]<cut){idx[i]=TR;continue;}
+        let r=a[j],g=a[j+1],b=a[j+2];
+        if(dither){
+          const o=(x+1)*3;
+          r=clamp(r+ce[o]/16,0,255);g=clamp(g+ce[o+1]/16,0,255);b=clamp(b+ce[o+2]/16,0,255);
+          const k=near(((r|0)>>3<<10)|((g|0)>>3<<5)|((b|0)>>3));idx[i]=k;
+          const p=pal[k],er=r-p[0],eg=g-p[1],eb=b-p[2];
+          ce[o+3]+=er*7;ce[o+4]+=eg*7;ce[o+5]+=eb*7;
+          ne[o-3]+=er*3;ne[o-2]+=eg*3;ne[o-1]+=eb*3;
+          ne[o]+=er*5;ne[o+1]+=eg*5;ne[o+2]+=eb*5;
+          ne[o+3]+=er;ne[o+4]+=eg;ne[o+5]+=eb;
+        }else idx[i]=near(((r>>3)<<10)|((g>>3)<<5)|(b>>3));
+      }
+    }
+    let x0=W,y0=H,x1=-1,y1=-1;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(idx[y*W+x]!==TR){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
+    let bw,bh,sub;
+    if(x1<0){x0=0;y0=0;bw=1;bh=1;sub=new Uint8Array([TR]);}
+    else{
+      bw=x1-x0+1;bh=y1-y0+1;sub=new Uint8Array(bw*bh);
+      for(let y=0;y<bh;y++)sub.set(idx.subarray((y0+y)*W+x0,(y0+y)*W+x0+bw),y*bw);
+    }
+    const cs=Math.max(2,Math.round(delaysMs[f]/10));
+    const fb=new ByteBuf(64);
+    fb.push(0x21);fb.push(0xF9);fb.push(4);fb.push((2<<2)|1);fb.u16(cs);fb.push(TR);fb.push(0);
+    fb.push(0x2C);fb.u16(x0);fb.u16(y0);fb.u16(bw);fb.u16(bh);fb.push(0);fb.push(8);
+    parts.push(fb.out());
+    const lz=lzwEncode(sub,8),sb=new ByteBuf(lz.length+lz.length/255+8);
+    for(let i=0;i<lz.length;i+=255){const l=Math.min(255,lz.length-i);sb.push(l);for(let k=0;k<l;k++)sb.push(lz[i+k]);}
+    sb.push(0);parts.push(sb.out());
+    if(onProg&&(f&1)===1){onProg(f+1,frames.length);await sleep0();}
+  }
+  parts.push(new Uint8Array([0x3B]));
+  return new Blob(parts,{type:'image/gif'});
+}
+
+/* ============ 抠底核心 ============ */
+let dBuf=null,stBuf=null,depBuf=null,nfBuf=null,qBuf=null,blBuf=null,eaBuf=null,ebBuf=null;
+function ensureBufs(n){
+  if(dBuf&&dBuf.length===n)return;
+  dBuf=new Float32Array(n);stBuf=new Uint8Array(n);depBuf=new Uint8Array(n);
+  nfBuf=new Int32Array(n);qBuf=new Int32Array(n);blBuf=new Int32Array(n);eaBuf=new Uint8Array(n);ebBuf=new Uint8Array(n);
+}
+function matte(src,W,H,P){
+  const n=W*H;ensureBufs(n);
+  const d=dBuf,st=stBuf,dep=depBuf,nf=nfBuf,q=qBuf,bl=blBuf;
+  st.fill(0);
+  const br=P.bg[0],bg=P.bg[1],bb=P.bg[2],tol=P.tol;
+  for(let i=0,j=0;i<n;i++,j+=4){
+    if(src[j+3]<=8){d[i]=0;continue;}
+    const dr=src[j]-br,dg=src[j+1]-bg,db=src[j+2]-bb;
+    d[i]=Math.sqrt((dr*dr+dg*dg+db*db)/3);
+  }
+  if(P.contiguous){
+    /* 1. 穿透保护：先把候选背景腐蚀 k 圈，细线（宽度 ≤ 2k）会断开 */
+    const k=P.guard|0;
+    let cur=eaBuf,oth=ebBuf;
+    for(let i=0;i<n;i++)cur[i]=d[i]<=tol?1:0;
+    for(let s=0;s<k;s++){
+      for(let y=0;y<H;y++){
+        const r=y*W;
+        for(let x=0;x<W;x++){
+          const i=r+x;let v=cur[i];
+          if(v&&((x>0&&!cur[i-1])||(x<W-1&&!cur[i+1])||(y>0&&!cur[i-W])||(y<H-1&&!cur[i+W])))v=0;
+          oth[i]=v;
+        }
+      }
+      const t=cur;cur=oth;oth=t;
+    }
+    /* 2. 从画面边缘泛洪 */
+    let sp=0;
+    for(let x=0;x<W;x++){
+      let i=x;if(st[i]===0&&cur[i]){st[i]=1;q[sp++]=i;}
+      i=(H-1)*W+x;if(st[i]===0&&cur[i]){st[i]=1;q[sp++]=i;}
+    }
+    for(let y=0;y<H;y++){
+      let i=y*W;if(st[i]===0&&cur[i]){st[i]=1;q[sp++]=i;}
+      i=y*W+W-1;if(st[i]===0&&cur[i]){st[i]=1;q[sp++]=i;}
+    }
+    for(let i=0;i<n;i++)if(src[i*4+3]<=8&&st[i]===0){st[i]=1;q[sp++]=i;}
+    while(sp>0){
+      const i=q[--sp],x=i%W;
+      if(x>0&&st[i-1]===0&&cur[i-1]){st[i-1]=1;q[sp++]=i-1;}
+      if(x<W-1&&st[i+1]===0&&cur[i+1]){st[i+1]=1;q[sp++]=i+1;}
+      if(i>=W&&st[i-W]===0&&cur[i-W]){st[i-W]=1;q[sp++]=i-W;}
+      if(i<n-W&&st[i+W]===0&&cur[i+W]){st[i+W]=1;q[sp++]=i+W;}
+    }
+    /* 3. 把腐蚀掉的边缘长回来（只长回原本就是背景色的像素） */
+    for(let s=0;s<k;s++){
+      let any=false;
+      for(let i=0;i<n;i++){
+        if(st[i]!==1)continue;
+        const x=i%W;
+        if(x>0&&st[i-1]===0&&d[i-1]<=tol){st[i-1]=3;any=true;}
+        if(x<W-1&&st[i+1]===0&&d[i+1]<=tol){st[i+1]=3;any=true;}
+        if(i>=W&&st[i-W]===0&&d[i-W]<=tol){st[i-W]=3;any=true;}
+        if(i<n-W&&st[i+W]===0&&d[i+W]<=tol){st[i+W]=3;any=true;}
+      }
+      if(!any)break;
+      for(let i=0;i<n;i++)if(st[i]===3)st[i]=1;
+    }
+  }else{
+    for(let i=0;i<n;i++)if(d[i]<=tol||src[i*4+3]<=8)st[i]=1;
+  }
+  /* 4. 去杂点：面积很小的孤立前景块并入背景 */
+  if(P.speck>0){
+    const maxA=P.speck;dep.fill(0);
+    for(let i=0;i<n;i++){
+      if(st[i]!==0||dep[i])continue;
+      let sp=0,cnt=0;dep[i]=1;q[sp++]=i;
+      while(sp>0){
+        const j=q[--sp];
+        if(cnt<maxA)bl[cnt]=j;
+        cnt++;
+        const x=j%W,y=(j-x)/W;
+        for(let dy=-1;dy<=1;dy++){
+          const ny=y+dy;if(ny<0||ny>=H)continue;
+          for(let dx=-1;dx<=1;dx++){
+            const nx=x+dx;if(nx<0||nx>=W)continue;
+            const m=ny*W+nx;
+            if(st[m]===0&&!dep[m]){dep[m]=1;q[sp++]=m;}
+          }
+        }
+      }
+      if(cnt<=maxA)for(let t=0;t<cnt;t++)st[bl[t]]=1;
+    }
+  }
+  const out=new Uint8ClampedArray(src);
+  for(let i=0;i<n;i++)if(st[i]===1)out[i*4+3]=0;
+  /* 5. 边缘平滑：按背景色与主体色反推半透明度并去色边 */
+  const bandW=P.band;
+  if(bandW>0){
+    let qh=0,qt=0,bc=0;
+    for(let i=0;i<n;i++){
+      if(st[i]!==1)continue;
+      const x=i%W;
+      if((x>0&&st[i-1]===0)||(x<W-1&&st[i+1]===0)||(i>=W&&st[i-W]===0)||(i<n-W&&st[i+W]===0)){q[qt++]=i;dep[i]=0;}
+    }
+    while(qh<qt){
+      const p=q[qh++],dp=dep[p];
+      if(dp>=bandW)continue;
+      const x=p%W;
+      if(x>0&&st[p-1]===0){st[p-1]=2;dep[p-1]=dp+1;q[qt++]=p-1;bl[bc++]=p-1;}
+      if(x<W-1&&st[p+1]===0){st[p+1]=2;dep[p+1]=dp+1;q[qt++]=p+1;bl[bc++]=p+1;}
+      if(p>=W&&st[p-W]===0){st[p-W]=2;dep[p-W]=dp+1;q[qt++]=p-W;bl[bc++]=p-W;}
+      if(p<n-W&&st[p+W]===0){st[p+W]=2;dep[p+W]=dp+1;q[qt++]=p+W;bl[bc++]=p+W;}
+    }
+    nf.fill(-1);qh=0;qt=0;
+    for(let k=0;k<bc;k++){
+      const p=bl[k],x=p%W;
+      if(x>0&&st[p-1]===0&&nf[p-1]<0){nf[p-1]=p-1;q[qt++]=p-1;}
+      if(x<W-1&&st[p+1]===0&&nf[p+1]<0){nf[p+1]=p+1;q[qt++]=p+1;}
+      if(p>=W&&st[p-W]===0&&nf[p-W]<0){nf[p-W]=p-W;q[qt++]=p-W;}
+      if(p<n-W&&st[p+W]===0&&nf[p+W]<0){nf[p+W]=p+W;q[qt++]=p+W;}
+    }
+    while(qh<qt){
+      const p=q[qh++],s=nf[p],x=p%W;
+      if(x>0&&st[p-1]===2&&nf[p-1]<0){nf[p-1]=s;q[qt++]=p-1;}
+      if(x<W-1&&st[p+1]===2&&nf[p+1]<0){nf[p+1]=s;q[qt++]=p+1;}
+      if(p>=W&&st[p-W]===2&&nf[p-W]<0){nf[p-W]=s;q[qt++]=p-W;}
+      if(p<n-W&&st[p+W]===2&&nf[p+W]<0){nf[p+W]=s;q[qt++]=p+W;}
+    }
+    const dec=P.decon;
+    for(let k=0;k<bc;k++){
+      const p=bl[k],s=nf[p];if(s<0)continue;
+      const j=p*4,sj=s*4;
+      const vr=src[sj]-br,vg=src[sj+1]-bg,vb=src[sj+2]-bb,dd=vr*vr+vg*vg+vb*vb;
+      if(dd<48)continue;
+      const cr=src[j],cg=src[j+1],cb=src[j+2];
+      let a=((cr-br)*vr+(cg-bg)*vg+(cb-bb)*vb)/dd;a=a<0?0:a>1?1:a;
+      if(a<0.004){out[j+3]=0;continue;}
+      out[j+3]=Math.round(src[j+3]*a);
+      if(a<1&&dec>0){
+        const ia=1-a;
+        const fr=clamp((cr-ia*br)/a,0,255),fg=clamp((cg-ia*bg)/a,0,255),fb=clamp((cb-ia*bb)/a,0,255);
+        out[j]=cr+(fr-cr)*dec;out[j+1]=cg+(fg-cg)*dec;out[j+2]=cb+(fb-cb)*dec;
+      }
+    }
+  }
+  return out;
+}
+function erode(out,W,H,k){
+  const n=W*H;let a=new Uint8Array(n),t=new Uint8Array(n);
+  for(let i=0;i<n;i++)a[i]=out[i*4+3];
+  for(let s=0;s<k;s++){
+    for(let y=0;y<H;y++){
+      const r=y*W;
+      for(let x=0;x<W;x++){
+        const i=r+x;let v=a[i];
+        if(v){
+          if(x>0&&a[i-1]<v)v=a[i-1];if(x<W-1&&a[i+1]<v)v=a[i+1];
+          if(y>0&&a[i-W]<v)v=a[i-W];if(y<H-1&&a[i+W]<v)v=a[i+W];
+        }
+        t[i]=v;
+      }
+    }
+    const tmp=a;a=t;t=tmp;
+  }
+  for(let i=0;i<n;i++)out[i*4+3]=a[i];
+}
+/* 闭运算：先膨胀再收缩，填平主体里的细缝；新增像素的颜色取自最近的不透明像素 */
+function closeGaps(out,W,H,r){
+  const n=W*H;let a=new Uint8Array(n),b=new Uint8Array(n);
+  for(let i=0;i<n;i++)a[i]=out[i*4+3]>=128?1:0;
+  const orig=a.slice();
+  const step=(src,dst,grow)=>{
+    for(let y=0;y<H;y++){
+      const row=y*W;
+      for(let x=0;x<W;x++){
+        const i=row+x;let v=src[i];
+        if(grow){if(!v&&((x>0&&src[i-1])||(x<W-1&&src[i+1])||(y>0&&src[i-W])||(y<H-1&&src[i+W])))v=1;}
+        else if(v&&((x>0&&!src[i-1])||(x<W-1&&!src[i+1])||(y>0&&!src[i-W])||(y<H-1&&!src[i+W])))v=0;
+        dst[i]=v;
+      }
+    }
+  };
+  for(let s=0;s<r;s++){step(a,b,true);const t=a;a=b;b=t;}
+  for(let s=0;s<r;s++){step(a,b,false);const t=a;a=b;b=t;}
+  const q=new Int32Array(n),done=new Uint8Array(n);let qh=0,qt=0,any=false;
+  for(let i=0;i<n;i++){if(orig[i]){done[i]=1;q[qt++]=i;}else if(a[i])any=true;}
+  if(!any)return;
+  while(qh<qt){
+    const p=q[qh++],x=p%W;
+    const nb=[x>0?p-1:-1,x<W-1?p+1:-1,p>=W?p-W:-1,p<n-W?p+W:-1];
+    for(let k=0;k<4;k++){
+      const m=nb[k];if(m<0||done[m]||!a[m])continue;
+      done[m]=1;out[m*4]=out[p*4];out[m*4+1]=out[p*4+1];out[m*4+2]=out[p*4+2];out[m*4+3]=255;q[qt++]=m;
+    }
+  }
+}
+function applyManual(out,src,m,n){
+  for(let i=0;i<n;i++){
+    const v=m[i];if(!v)continue;const j=i*4;
+    if(v===1)out[j+3]=0;
+    else{out[j]=src[j];out[j+1]=src[j+1];out[j+2]=src[j+2];out[j+3]=src[j+3]===0?0:255;}
+  }
+}
+/* 调色与趣味效果（在抠完之后、描边之前） */
+function adjustColors(out,P,fi,nf){
+  const act=P.bri||P.sat||P.op<100||P.inv||P.rainbow||P.ghost;
+  if(!act)return;
+  let sat=1+P.sat/100,bri=P.bri*2.55,opk=P.op/100;
+  if(P.ghost){opk*=0.55;sat*=0.45;bri+=28;}
+  let m=null;
+  if(P.rainbow&&nf>0){
+    const ang=(fi/nf)*Math.PI*2,c=Math.cos(ang),s=Math.sin(ang);
+    m=[0.213+c*0.787-s*0.213,0.715-c*0.715-s*0.715,0.072-c*0.072+s*0.928,
+       0.213-c*0.213+s*0.143,0.715+c*0.285+s*0.140,0.072-c*0.072-s*0.283,
+       0.213-c*0.213-s*0.787,0.715-c*0.715+s*0.715,0.072+c*0.928+s*0.072];
+  }
+  for(let j=0,n=out.length;j<n;j+=4){
+    const a=out[j+3];if(a===0)continue;
+    let r=out[j],g=out[j+1],b=out[j+2];
+    if(m){const r2=m[0]*r+m[1]*g+m[2]*b,g2=m[3]*r+m[4]*g+m[5]*b,b2=m[6]*r+m[7]*g+m[8]*b;r=r2;g=g2;b=b2;}
+    if(P.inv){r=255-r;g=255-g;b=255-b;}
+    if(sat!==1){const y=0.299*r+0.587*g+0.114*b;r=y+(r-y)*sat;g=y+(g-y)*sat;b=y+(b-y)*sat;}
+    if(bri){r+=bri;g+=bri;b+=bri;}
+    out[j]=r;out[j+1]=g;out[j+2]=b;
+    if(opk<1)out[j+3]=a*opk;
+  }
+}
+function distToOpaque(sub,PW,PH){
+  const n=PW*PH,dt=new Float32Array(n);
+  for(let i=0;i<n;i++)dt[i]=sub[i*4+3]>=128?0:1e6;
+  const R2=1.41421356;
+  for(let y=0;y<PH;y++)for(let x=0;x<PW;x++){
+    const i=y*PW+x;let v=dt[i];if(v===0)continue;let t;
+    if(x>0){t=dt[i-1]+1;if(t<v)v=t;}
+    if(y>0){t=dt[i-PW]+1;if(t<v)v=t;if(x>0){t=dt[i-PW-1]+R2;if(t<v)v=t;}if(x<PW-1){t=dt[i-PW+1]+R2;if(t<v)v=t;}}
+    dt[i]=v;
+  }
+  for(let y=PH-1;y>=0;y--)for(let x=PW-1;x>=0;x--){
+    const i=y*PW+x;let v=dt[i];if(v===0)continue;let t;
+    if(x<PW-1){t=dt[i+1]+1;if(t<v)v=t;}
+    if(y<PH-1){t=dt[i+PW]+1;if(t<v)v=t;if(x<PW-1){t=dt[i+PW+1]+R2;if(t<v)v=t;}if(x>0){t=dt[i+PW-1]+R2;if(t<v)v=t;}}
+    dt[i]=v;
+  }
+  return dt;
+}
+function boxBlur(a,W,H,r){
+  if(r<=0)return a;
+  const t=new Float32Array(a.length),w=2*r+1;
+  for(let y=0;y<H;y++){
+    let s=0;const row=y*W;
+    for(let x=-r;x<=r;x++)s+=a[row+clamp(x,0,W-1)];
+    for(let x=0;x<W;x++){t[row+x]=s/w;s+=a[row+clamp(x+r+1,0,W-1)]-a[row+clamp(x-r,0,W-1)];}
+  }
+  const o=new Float32Array(a.length);
+  for(let x=0;x<W;x++){
+    let s=0;
+    for(let y=-r;y<=r;y++)s+=t[clamp(y,0,H-1)*W+x];
+    for(let y=0;y<H;y++){o[y*W+x]=s/w;s+=t[clamp(y+r+1,0,H-1)*W+x]-t[clamp(y-r,0,H-1)*W+x];}
+  }
+  return o;
+}
+/* 把投影、发光、描边垫在主体下面，画布向四周扩出 pad 像素 */
+function composeLayers(res0,W,H,P){
+  const olW=P.olW,gR=P.glowR,hasSh=P.shMode!=='none';
+  const shB=hasSh&&P.shMode==='soft'?Math.max(2,Math.round(P.shOff*0.9)):0;
+  const pad=Math.max(olW,gR,hasSh?P.shOff+shB*2+1:0);
+  if(pad<=0)return {data:res0,PW:W,PH:H,pad:0};
+  const PW=W+2*pad,PH=H+2*pad,n=PW*PH;
+  const sub=new Uint8ClampedArray(n*4);
+  for(let y=0;y<H;y++)sub.set(res0.subarray(y*W*4,(y+1)*W*4),((y+pad)*PW+pad)*4);
+  const dt=(olW>0||gR>0)?distToOpaque(sub,PW,PH):null;
+  let sa=null;
+  if(hasSh){
+    sa=new Float32Array(n);const o=P.shOff;
+    for(let y=0;y<PH;y++){
+      const sy=y-o;if(sy<0||sy>=PH)continue;
+      for(let x=0;x<PW;x++){const sx=x-o;if(sx<0||sx>=PW)continue;sa[y*PW+x]=sub[(sy*PW+sx)*4+3]/255;}
+    }
+    if(shB>0){sa=boxBlur(sa,PW,PH,shB);sa=boxBlur(sa,PW,PH,shB);}
+  }
+  const out=new Uint8ClampedArray(n*4);
+  const oc=P.olCol,gc=P.glowCol,sc=P.shCol,shOp=P.shMode==='soft'?0.5:0.6;
+  for(let i=0;i<n;i++){
+    let a=0,r=0,g=0,b=0,la,na;
+    if(sa){
+      la=sa[i]*shOp;
+      if(la>0){a=la;r=sc[0];g=sc[1];b=sc[2];}
+    }
+    if(gR>0){
+      const t=1-dt[i]/gR;
+      if(t>0){
+        la=Math.min(1,t*t*1.25);
+        na=la+a*(1-la);r=(gc[0]*la+r*a*(1-la))/na;g=(gc[1]*la+g*a*(1-la))/na;b=(gc[2]*la+b*a*(1-la))/na;a=na;
+      }
+    }
+    if(olW>0){
+      la=clamp(olW+0.5-dt[i],0,1);
+      if(la>0){
+        na=la+a*(1-la);r=(oc[0]*la+r*a*(1-la))/na;g=(oc[1]*la+g*a*(1-la))/na;b=(oc[2]*la+b*a*(1-la))/na;a=na;
+      }
+    }
+    const j=i*4;la=sub[j+3]/255;
+    if(la>0){
+      na=la+a*(1-la);r=(sub[j]*la+r*a*(1-la))/na;g=(sub[j+1]*la+g*a*(1-la))/na;b=(sub[j+2]*la+b*a*(1-la))/na;a=na;
+    }
+    out[j]=r;out[j+1]=g;out[j+2]=b;out[j+3]=a*255;
+  }
+  return {data:out,PW,PH,pad};
+}
+
+/* ============ 状态 ============ */
+let G=null,keep=[],manual=[],manVer=[],cache=[],thumbVer=[],thumbs=[];
+let curRaw=0,pos=0,seq=[],playing=false,timer=0,ver=1,busy=false,lastSig='',warmTok=0,warmTimer=0,toastTimer=0,toastKind='',ctlQueued=false;
+const DEF={tol:14,band:2,decon:.9,shrink:0,guard:3,speck:4,close:0};
+const P={bg:[255,255,255],tol:14,band:2,decon:.9,shrink:0,guard:3,speck:4,close:0,contiguous:true,
+  olW:0,olCol:[255,255,255],glowR:0,glowCol:[255,228,94],shMode:'none',shOff:6,shCol:[0,0,0],
+  bri:0,sat:0,op:100,inv:false,rainbow:false,ghost:false};
+const V={pm:'fwd',thin:1,speed:1,zoom:'fit',view:'out',pbg:'checker',cmpPos:50,tool:'none',bsz:14,allF:false,pick:false,
+  obg:'none',obg1:'#ffffff',obg2:'#cfe3ff',obgDir:'v',gta:128,dither:false,cols:0,fmt:'gif',xscale:1,pixel:false,crop:false,cropPad:2,wq:90};
+const toHex=c=>'#'+c.map(v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('');
+const fromHex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const FMT_LABEL={gif:'GIF',apng:'APNG',webp:'WebP',zip:'PNG 序列',sprite:'精灵图'};
+const FMT_HINT={
+  gif:'GIF：兼容性最好，但透明只有「有」和「没有」两档，边缘会有一点锯齿。',
+  apng:'APNG：保留半透明边缘，画质最好。文件后缀是 .png，大多数浏览器和聊天软件能直接播放。',
+  webp:'WebP：体积通常比 APNG 小很多，同样保留半透明边缘。部分老软件不能播放。',
+  zip:'PNG 序列：每帧一张透明 PNG，打包成 zip，附带 frames.json 记录每帧时长。适合导入视频或游戏引擎。',
+  sprite:'精灵图：把所有帧排成一张透明 PNG，适合做游戏。文件名里带有列数和行数。'
+};
+
+const view=$('#view'),cvOrig=$('#cvOrig'),cvOut=$('#cvOut'),octx=cvOut.getContext('2d'),cctx=cvOrig.getContext('2d'),mat=$('#mat');
+const strip=$('#strip'),scrub=$('#scrub'),divider=$('#divider'),ring=$('#ring');
+const tmpC=document.createElement('canvas'),tmpX=tmpC.getContext('2d');
+
+function say(t,ms,kind){
+  const el=$('#toast');clearTimeout(toastTimer);toastKind=kind||'';
+  if(!t){el.hidden=true;return;}
+  el.textContent=t;el.hidden=false;
+  if(ms!==0)toastTimer=setTimeout(()=>{el.hidden=true;toastKind='';},ms||4000);
+}
+const sayProgress=t=>say(t,0,'progress');
+const clearProgress=()=>{if(toastKind==='progress')say('');};
+function fmtBytes(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(0)+' KB':(n/1048576).toFixed(2)+' MB';}
+
+/* ============ 帧处理与缓存 ============ */
+function processFrame(i){
+  const W=G.W,H=G.H,src=G.frames[i].data;
+  const out=matte(src,W,H,P);
+  if(P.shrink>0)erode(out,W,H,P.shrink);
+  if(P.close>0)closeGaps(out,W,H,P.close);
+  const m=manual[i];if(m)applyManual(out,src,m,W*H);
+  adjustColors(out,P,i,G.frames.length);
+  return composeLayers(out,W,H,P);
+}
+function getProcessed(i){
+  const c=cache[i];
+  if(c&&c.ver===ver&&c.mv===manVer[i])return c;
+  const nc=processFrame(i);nc.ver=ver;nc.mv=manVer[i];cache[i]=nc;return nc;
+}
+function updateThumb(i){
+  const pr=getProcessed(i),t=thumbs[i];if(!t)return;
+  tmpC.width=pr.PW;tmpC.height=pr.PH;
+  tmpX.putImageData(new ImageData(pr.data,pr.PW,pr.PH),0,0);
+  const x=t.getContext('2d');x.clearRect(0,0,72,72);
+  const s=Math.min(72/pr.PW,72/pr.PH),w=pr.PW*s,h=pr.PH*s;
+  x.imageSmoothingQuality='high';x.drawImage(tmpC,(72-w)/2,(72-h)/2,w,h);
+  thumbVer[i]=ver+':'+manVer[i];
+}
+function scheduleWarm(){clearTimeout(warmTimer);warmTimer=setTimeout(warm,120);}
+async function warm(){
+  if(!G)return;
+  const tok=++warmTok,n=G.frames.length,start=curRaw;let t0=performance.now();
+  for(let k=0;k<n;k++){
+    if(tok!==warmTok||!G)return;
+    const i=(start+k)%n;
+    const c=cache[i];
+    const fresh=c&&c.ver===ver&&c.mv===manVer[i];
+    if(!fresh||thumbVer[i]!==ver+':'+manVer[i])updateThumb(i);
+    if(performance.now()-t0>12){if(n>6)sayProgress(t('处理中 {0}/{1}',k+1,n));await sleep0();t0=performance.now();}
+  }
+  if(tok===warmTok)clearProgress();
+}
+async function ensureAll(label){
+  warmTok++;
+  const list=[...new Set(seq)];let t0=performance.now();
+  for(let k=0;k<list.length;k++){
+    getProcessed(list[k]);
+    if(performance.now()-t0>15){sayProgress(label+' '+(k+1)+'/'+list.length);await sleep0();t0=performance.now();}
+  }
+}
+
+/* ============ 预览绘制 ============ */
+function bgCss(){
+  if(V.obg==='solid')return V.obg1;
+  if(V.obg==='grad')return 'linear-gradient('+(V.obgDir==='h'?'to right':'to bottom')+','+V.obg1+','+V.obg2+')';
+  return null;
+}
+function applyViewBg(){
+  const css=bgCss();
+  if(css){view.classList.remove('checker');view.style.background=css;return;}
+  if(V.pbg==='checker'){view.classList.add('checker');view.style.background='';return;}
+  view.classList.remove('checker');
+  view.style.background=V.pbg==='white'?'#fff':V.pbg==='black'?'#000':V.pbg==='green'?'#00b140':$('#pbgCol').value;
+}
+let scale=1;
+function layout(){
+  if(!G)return;
+  const PW=cvOut.width,PH=cvOut.height;if(!PW||!PH)return;
+  let s;
+  if(V.zoom==='fit'){
+    const aw=Math.max(80,mat.clientWidth-(mat.clientWidth>420?48:24));
+    const ah=Math.max(260,Math.min(560,innerHeight*0.6));
+    s=clamp(Math.min(aw/PW,ah/PH),0.02,4);
+  }else s=+V.zoom;
+  scale=s;
+  view.style.width=Math.round(PW*s)+'px';view.style.height=Math.round(PH*s)+'px';
+  view.classList.toggle('pix',s>=2);
+  const rs=V.bsz*s;ring.style.width=rs+'px';ring.style.height=rs+'px';
+}
+function draw(){
+  if(!G)return;
+  const pr=getProcessed(curRaw);
+  if(cvOut.width!==pr.PW||cvOut.height!==pr.PH){cvOut.width=pr.PW;cvOut.height=pr.PH;cvOrig.width=pr.PW;cvOrig.height=pr.PH;layout();}
+  const v=V.view;
+  if(v==='alpha'){
+    const a=new Uint8ClampedArray(pr.data.length);
+    for(let i=0;i<pr.data.length;i+=4){const x=pr.data[i+3];a[i]=x;a[i+1]=x;a[i+2]=x;a[i+3]=255;}
+    octx.putImageData(new ImageData(a,pr.PW,pr.PH),0,0);
+  }else octx.putImageData(new ImageData(pr.data,pr.PW,pr.PH),0,0);
+  cvOut.hidden=v==='orig';
+  cvOrig.hidden=!(v==='cmp'||v==='orig');
+  divider.hidden=v!=='cmp';
+  if(v==='cmp'||v==='orig'){
+    cctx.clearRect(0,0,pr.PW,pr.PH);
+    cctx.putImageData(new ImageData(G.frames[curRaw].data,G.W,G.H),pr.pad,pr.pad);
+  }
+  if(v==='cmp'){
+    cvOrig.style.clipPath='inset(0 '+(100-V.cmpPos)+'% 0 0)';
+    cvOut.style.clipPath='inset(0 0 0 '+V.cmpPos+'%)';
+    divider.style.left=V.cmpPos+'%';
+  }else{cvOut.style.clipPath='';cvOrig.style.clipPath='';}
+  $('#fl').textContent=t('第 {0} / {1} 帧 · {2}ms',curRaw+1,G.frames.length,G.frames[curRaw].delay);
+  strip.querySelectorAll('.th.on').forEach(e=>e.classList.remove('on'));
+  const th=strip.children[curRaw];
+  if(th){th.classList.add('on');if(playing)strip.scrollLeft=th.offsetLeft-strip.clientWidth/2+36;}
+  const sp=seq.indexOf(curRaw);scrub.value=sp<0?pos:sp;
+}
+
+/* ============ 时间轴 ============ */
+function computeSeq(){
+  let kept=[];for(let i=0;i<keep.length;i++)if(keep[i])kept.push(i);
+  if(V.thin>1)kept=kept.filter((_,k)=>k%V.thin===0);
+  if(V.pm==='rev')return kept.slice().reverse();
+  if(V.pm==='pp')return kept.length>2?kept.concat(kept.slice(1,-1).reverse()):kept;
+  return kept;
+}
+function rebuildSeq(){
+  seq=computeSeq();
+  scrub.max=Math.max(0,seq.length-1);
+  const p=seq.indexOf(curRaw);if(p>=0)pos=p;else pos=Math.min(pos,Math.max(0,seq.length-1));
+  const dis=seq.length===0||!G;
+  $('#goExport').disabled=dis||busy;$('#play').disabled=dis;
+  if(G&&seq.length===0){pause();say(t('至少要保留一帧'),3000);}
+  updateDock();
+}
+function frameDelay(raw){return Math.max(20,Math.round(G.frames[raw].delay*V.thin/V.speed));}
+function tick(){
+  if(!playing||!seq.length)return;
+  curRaw=seq[pos%seq.length];draw();
+  timer=setTimeout(()=>{pos=(pos+1)%seq.length;tick();},frameDelay(curRaw));
+}
+function play(){if(!G||!seq.length||G.frames.length<2)return;playing=true;$('#play').textContent=t('暂停');clearTimeout(timer);tick();}
+function pause(){playing=false;clearTimeout(timer);$('#play').textContent=t('播放');}
+
+/* ============ 撤销 / 重做（笔刷） ============ */
+const hist={undo:[],redo:[],bytes:0};
+let strokeEntry=null;
+const entryBytes=e=>{let s=0;for(const m of e.values())if(m)s+=m.length;return s;};
+function snap(i){if(strokeEntry&&!strokeEntry.has(i)){const m=manual[i];strokeEntry.set(i,m?m.slice():null);}}
+function pushEntry(e){
+  if(!e||!e.size)return;
+  hist.undo.push(e);hist.redo.length=0;
+  hist.bytes=hist.undo.reduce((s,x)=>s+entryBytes(x),0);
+  while(hist.undo.length>1&&(hist.undo.length>60||hist.bytes>160*1024*1024)){hist.undo.shift();hist.bytes=hist.undo.reduce((s,x)=>s+entryBytes(x),0);}
+  updateHistBtns();
+}
+function updateHistBtns(){$('#undo').disabled=!hist.undo.length;$('#redo').disabled=!hist.redo.length;}
+function stepHistory(from,to){
+  const e=from.pop();if(!e||!G)return;
+  const inv=new Map();
+  for(const [i,m] of e){inv.set(i,manual[i]);manual[i]=m;manVer[i]++;}
+  to.push(inv);updateHistBtns();draw();scheduleWarm();
+}
+
+/* ============ 载入文件 ============ */
+function detectBg(fr,W,H){
+  const hist2=new Map();
+  const add=(x,y)=>{
+    const i=(y*W+x)*4;if(fr[i+3]<200)return;
+    const r=fr[i],g=fr[i+1],b=fr[i+2],k=((r>>4)<<8)|((g>>4)<<4)|(b>>4);
+    let e=hist2.get(k);if(!e){e=[0,0,0,0];hist2.set(k,e);}e[0]++;e[1]+=r;e[2]+=g;e[3]+=b;
+  };
+  for(let x=0;x<W;x++){add(x,0);add(x,H-1);}
+  for(let y=0;y<H;y++){add(0,y);add(W-1,y);}
+  let best=null;for(const e of hist2.values())if(!best||e[0]>best[0])best=e;
+  return best?[Math.round(best[1]/best[0]),Math.round(best[2]/best[0]),Math.round(best[3]/best[0])]:[255,255,255];
+}
+function setBg(rgb){P.bg=rgb.slice();$('#bgColor').value=toHex(rgb);$('#bgHex').textContent=toHex(rgb).toUpperCase();}
+function installGif(g,name){
+  pause();warmTok++;
+  G={name:name,W:g.W,H:g.H,frames:g.frames,loop:g.loop};
+  const n=g.frames.length;
+  keep=new Array(n).fill(true);manual=new Array(n).fill(null);manVer=new Array(n).fill(0);cache=[];thumbVer=[];
+  hist.undo.length=0;hist.redo.length=0;hist.bytes=0;updateHistBtns();
+  curRaw=0;pos=0;ver++;
+  setBg(detectBg(g.frames[0].data,g.W,g.H));
+  readControls();lastSig=JSON.stringify(P);
+  buildStrip();rebuildSeq();
+  cvOut.width=0;draw();layout();
+  const total=g.frames.reduce((s,f)=>s+f.delay,0);
+  infoState={name:name,W:g.W,H:g.H,n:n,total:total};renderInfo();
+  scrub.hidden=n<2;
+  say(g.note||'');
+  play();scheduleWarm();
+}
+function loadBytes(buf,name){
+  let g;
+  try{g=decodeGIF(buf);}catch(e){say(e.message||t('读取失败'),6000);return;}
+  installGif(g,name);
+}
+function buildStrip(){
+  strip.innerHTML='';thumbs=[];
+  for(let i=0;i<G.frames.length;i++){
+    const el=document.createElement('div');el.className='th';
+    const c=document.createElement('canvas');c.width=72;c.height=72;c.dataset.i=i;
+    const lab=document.createElement('label');
+    lab.innerHTML='<input type="checkbox" checked data-i="'+i+'" aria-label="'+t('保留第 {0} 帧',i+1)+'"><span>'+(i+1)+'</span>';
+    el.appendChild(c);el.appendChild(lab);strip.appendChild(el);thumbs.push(c);
+  }
+}
+async function openFile(file){
+  if(!file||busy)return;
+  if(file.size>80*1024*1024){say(t('文件超过 80MB，请先压缩后再试'),5000);return;}
+  say(t('正在读取…'),0);
+  await sleep0();
+  try{const g=await decodeAny(file);installGif(g,file.name);}
+  catch(e){say(e&&e.message||t('读取失败'),6000);}
+}
+
+/* ============ 示例 ============ */
+function star(x,cx,cy,r){
+  x.beginPath();
+  for(let i=0;i<8;i++){const rr=i%2?r*.4:r,a=i*Math.PI/4-Math.PI/2;x[i?'lineTo':'moveTo'](cx+Math.cos(a)*rr,cy+Math.sin(a)*rr);}
+  x.closePath();x.fill();
+}
+async function makeSample(dark){
+  say(t('正在生成示例…'),0);await sleep0();
+  const W=240,H=240,N=20,c=document.createElement('canvas');c.width=W;c.height=H;
+  const x=c.getContext('2d',{willReadFrequently:true}),fr=[];
+  for(let f=0;f<N;f++){
+    const t=f/N,h=Math.abs(Math.sin(t*Math.PI)),y=185-105*h,sq=1-h;
+    x.fillStyle=dark?'#000':'#fff';x.fillRect(0,0,W,H);
+    x.save();x.translate(120,y);x.scale(1+.16*sq,1-.14*sq);
+    const g=x.createRadialGradient(-14,-18,6,0,0,54);g.addColorStop(0,'#ffb067');g.addColorStop(1,'#e2512b');
+    x.fillStyle=g;x.beginPath();x.arc(0,0,50,0,7);x.fill();
+    x.fillStyle='#fff';for(const ex of [-17,17]){x.beginPath();x.arc(ex,-8,12,0,7);x.fill();}
+    x.fillStyle='#1b1b1b';const look=Math.sin(t*Math.PI*2)*3;
+    for(const ex of [-17,17]){x.beginPath();x.arc(ex+look,-7,5,0,7);x.fill();}
+    x.strokeStyle='#7a1d08';x.lineWidth=3;x.lineCap='round';x.beginPath();x.arc(0,10,13,.2*Math.PI,.8*Math.PI);x.stroke();
+    x.restore();
+    const a=t*Math.PI*2;x.fillStyle='#ffd23f';star(x,120+Math.cos(a)*85,y-10+Math.sin(a)*42,10);
+    fr.push(x.getImageData(0,0,W,H).data);
+  }
+  const blob=await encodeGIF(fr,W,H,new Array(N).fill(60),128,false);
+  loadBytes(await blob.arrayBuffer(),t(dark?'示例-黑底':'示例-白底')+'.gif');
+}
+
+/* ============ 控件 ============ */
+function readControls(){
+  P.bg=fromHex($('#bgColor').value);
+  P.tol=+$('#tol').value;P.band=+$('#band').value;P.decon=+$('#decon').value/100;P.shrink=+$('#shrink').value;
+  P.guard=+$('#guard').value;P.speck=+$('#speck').value;P.close=+$('#close').value;
+  P.contiguous=$('#mode').value==='edge';
+  P.olW=$('#olOn').checked?+$('#olW').value:0;P.olCol=fromHex($('#olColor').value);
+  P.glowR=$('#glowOn').checked?+$('#glowR').value:0;P.glowCol=fromHex($('#glowColor').value);
+  P.shMode=$('#shMode').value;P.shOff=+$('#shOff').value;P.shCol=fromHex($('#shColor').value);
+  P.bri=+$('#bri').value;P.sat=+$('#sat').value;P.op=+$('#op').value;
+  P.inv=$('#fxInv').checked;P.rainbow=$('#fxRainbow').checked;P.ghost=$('#fxGhost').checked;
+  V.pm=$('#pm').value;V.thin=+$('#thin').value;V.speed=+$('#speed').value;V.zoom=$('#zoom').value;
+  V.cmpPos=+$('#cmpPos').value;V.bsz=+$('#bsz').value;V.allF=$('#allF').checked;V.wtol=+$('#wtol').value;V.wgrow=+$('#wgrow').value;V.wcontig=$('#wcontig').checked;
+  V.obg=$('#obg').value;V.obg1=$('#obg1').value;V.obg2=$('#obg2').value;V.obgDir=$('#obgDir').value;
+  V.gta=+$('#gta').value;V.dither=$('#dither').checked;V.cols=Math.max(0,Math.min(64,parseInt($('#cols').value)||0));
+  V.xscale=+$('#xscale').value;V.target=Math.max(0,parseFloat($('#target').value)||0);V.pixel=$('#pixel').checked;V.crop=$('#crop').checked;
+  V.cropPad=Math.max(0,Math.min(64,parseInt($('#cropPad').value)||0));V.wq=+$('#wq').value;
+  const set=(id,t)=>{$('#'+id).textContent=t;};
+  set('tolV',P.tol);set('bandV',P.band);set('deconV',Math.round(P.decon*100));set('shrinkV',P.shrink);
+  set('guardV',P.guard);set('closeV',P.close);set('speckV',P.speck);set('olWV',$('#olW').value);set('glowRV',$('#glowR').value);
+  set('shOffV',P.shOff);set('briV',P.bri);set('satV',P.sat);set('opV',P.op);set('bszV',V.bsz);set('wtolV',V.wtol);set('wgrowV',V.wgrow);
+  set('speedV',V.speed.toFixed(2)+'×');set('gtaV',V.gta);set('wqV',V.wq===100?t('无损'):V.wq);
+  set('bgHex',toHex(P.bg).toUpperCase());
+  $('#guard').disabled=!P.contiguous;
+  $('#obgBox').hidden=V.obg==='none';$('#obg2').hidden=V.obg!=='grad';$('#obgDir').hidden=V.obg!=='grad';
+  $('#cmpPos').hidden=V.view!=='cmp';
+}
+function onControl(){
+  readControls();
+  const sig=JSON.stringify(P),changed=sig!==lastSig;
+  if(changed){lastSig=sig;ver++;}
+  if(!G)return;
+  rebuildSeq();applyViewBg();layout();draw();
+  if(changed)scheduleWarm();
+}
+function queueControl(){
+  if(ctlQueued)return;ctlQueued=true;
+  requestAnimationFrame(()=>{ctlQueued=false;onControl();});
+}
+$('.grid').addEventListener('input',e=>{if(e.target.closest('.strip'))return;queueControl();});
+$('.grid').addEventListener('change',e=>{if(e.target.closest('.strip'))return;queueControl();});
+
+function resetParams(){
+  for(const k of Object.keys(DEF)){$('#'+k).value=k==='decon'?Math.round(DEF[k]*100):DEF[k];}
+  $('#mode').value='edge';
+  $('#olOn').checked=false;$('#olW').value=4;$('#olColor').value='#ffffff';
+  $('#glowOn').checked=false;$('#glowR').value=10;$('#glowColor').value='#ffe45e';
+  $('#shMode').value='none';$('#shOff').value=6;$('#shColor').value='#000000';
+  $('#bri').value=0;$('#sat').value=0;$('#op').value=100;
+  $('#fxInv').checked=false;$('#fxRainbow').checked=false;$('#fxGhost').checked=false;
+  if(G)setBg(detectBg(G.frames[curRaw].data,G.W,G.H));
+  onControl();say(t('已恢复默认参数'),2000);
+}
+$('#resetP').onclick=resetParams;
+$('#bgAuto').onclick=()=>{if(G){setBg(detectBg(G.frames[curRaw].data,G.W,G.H));onControl();}};
+$('#bgW').onclick=()=>{setBg([255,255,255]);onControl();};
+$('#bgB').onclick=()=>{setBg([0,0,0]);onControl();};
+$('#pick').onclick=()=>{
+  V.pick=!V.pick;$('#pick').setAttribute('aria-pressed',V.pick);view.classList.toggle('pickmode',V.pick);
+  if(V.pick)say(t('在预览图上点一下要去掉的背景色'),3000);
+};
+document.querySelectorAll('[data-bg]').forEach(b=>b.onclick=()=>{
+  V.pbg=b.dataset.bg;document.querySelectorAll('[data-bg]').forEach(x=>x.setAttribute('aria-pressed',x===b));applyViewBg();
+});
+$('#pbgCol').addEventListener('input',()=>{V.pbg='custom';document.querySelectorAll('[data-bg]').forEach(x=>x.setAttribute('aria-pressed','false'));applyViewBg();});
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{
+  V.view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  $('#cmpPos').hidden=V.view!=='cmp';draw();
+});
+document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{
+  V.tool=b.dataset.tool;document.querySelectorAll('[data-tool]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  const isWand=V.tool==='wandE'||V.tool==='wandR';
+  view.classList.toggle('brush',V.tool==='erase'||V.tool==='restore');view.classList.toggle('wandmode',isWand);ring.hidden=true;
+  if(isWand)say(t('在预览图上点一下要处理的色块'),3000);
+  if(V.tool!=='none'&&V.view==='orig'){document.querySelector('[data-view="out"]').click();}
+});
+$('#clrMan').onclick=()=>{
+  if(!G)return;
+  const e=new Map();
+  for(let i=0;i<manual.length;i++)if(manual[i]){e.set(i,manual[i]);manual[i]=null;manVer[i]++;}
+  if(!e.size){say(t('没有手动修改可清除'),2000);return;}
+  pushEntry(e);draw();scheduleWarm();say(t('已清除手动修改，可以撤销'),3000);
+};
+$('#undo').onclick=()=>stepHistory(hist.undo,hist.redo);
+$('#redo').onclick=()=>stepHistory(hist.redo,hist.undo);
+$('#play').onclick=()=>{playing?pause():play();};
+scrub.addEventListener('input',()=>{
+  pause();pos=+scrub.value;if(seq.length){curRaw=seq[Math.min(pos,seq.length-1)];draw();}
+});
+strip.addEventListener('click',e=>{
+  const c=e.target.closest('canvas');if(!c)return;
+  pause();curRaw=+c.dataset.i;const p=seq.indexOf(curRaw);if(p>=0)pos=p;draw();
+});
+strip.addEventListener('change',e=>{
+  const cb=e.target;if(!cb.matches('input[type=checkbox]'))return;
+  const i=+cb.dataset.i;keep[i]=cb.checked;cb.closest('.th').classList.toggle('off',!cb.checked);
+  rebuildSeq();draw();
+});
+document.addEventListener('keydown',e=>{
+  const t=e.target;if(t&&/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)&&t.type!=='range'&&t.type!=='checkbox')return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();stepHistory(e.shiftKey?hist.redo:hist.undo,e.shiftKey?hist.undo:hist.redo);return;}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();stepHistory(hist.redo,hist.undo);return;}
+  if(t&&t.tagName==='BUTTON')return;
+  if(e.key==='o'||e.key==='O'){$('#file').click();return;}
+  if(!G)return;
+  if(e.key===' '){e.preventDefault();playing?pause():play();}
+  else if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+    e.preventDefault();pause();if(!seq.length)return;
+    pos=(pos+(e.key==='ArrowRight'?1:-1)+seq.length)%seq.length;curRaw=seq[pos];draw();
+  }
+});
+
+/* 笔刷与吸管 */
+let painting=false,last=null;
+function srcPoint(e){
+  const r=cvOut.getBoundingClientRect(),pad=getProcessed(curRaw).pad;
+  return {x:(e.clientX-r.left)*cvOut.width/r.width-pad,y:(e.clientY-r.top)*cvOut.height/r.height-pad};
+}
+function stamp(i,cx,cy,r,val){
+  const W=G.W,H=G.H;snap(i);
+  let m=manual[i];if(!m){m=new Uint8Array(W*H);manual[i]=m;}
+  const x0=Math.max(0,Math.floor(cx-r)),x1=Math.min(W-1,Math.ceil(cx+r)),y0=Math.max(0,Math.floor(cy-r)),y1=Math.min(H-1,Math.ceil(cy+r)),r2=r*r;
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const dx=x-cx,dy=y-cy;if(dx*dx+dy*dy<=r2)m[y*W+x]=val;}
+  manVer[i]++;
+}
+function paintTo(pt){
+  const r=V.bsz/2,val=V.tool==='erase'?1:2;
+  const from=last||pt,dx=pt.x-from.x,dy=pt.y-from.y,dist=Math.hypot(dx,dy),steps=Math.max(1,Math.ceil(dist/Math.max(1,r/2)));
+  for(let s=1;s<=steps;s++){
+    const x=from.x+dx*s/steps,y=from.y+dy*s/steps;
+    if(V.allF)for(let i=0;i<G.frames.length;i++)stamp(i,x,y,r,val);else stamp(curRaw,x,y,r,val);
+  }
+  last=pt;draw();
+}
+cvOut.addEventListener('pointerdown',e=>{
+  if(!G)return;
+  if(V.pick){
+    const p=srcPoint(e),x=Math.floor(p.x),y=Math.floor(p.y);
+    if(x>=0&&y>=0&&x<G.W&&y<G.H){const f=G.frames[curRaw].data,k=(y*G.W+x)*4;if(f[k+3]>8){setBg([f[k],f[k+1],f[k+2]]);}}
+    V.pick=false;$('#pick').setAttribute('aria-pressed','false');view.classList.remove('pickmode');onControl();return;
+  }
+  if(V.tool==='none')return;
+  if(V.tool==='wandE'||V.tool==='wandR'){e.preventDefault();pause();wandAt(srcPoint(e),V.tool==='wandE'?1:2);return;}
+  e.preventDefault();pause();painting=true;last=null;strokeEntry=new Map();
+  cvOut.setPointerCapture(e.pointerId);paintTo(srcPoint(e));
+});
+cvOut.addEventListener('pointermove',e=>{
+  if(V.tool==='erase'||V.tool==='restore'){
+    const vr=view.getBoundingClientRect();ring.hidden=false;ring.style.left=(e.clientX-vr.left)+'px';ring.style.top=(e.clientY-vr.top)+'px';
+  }
+  if(painting)paintTo(srcPoint(e));
+});
+const endPaint=()=>{if(painting){painting=false;last=null;pushEntry(strokeEntry);strokeEntry=null;scheduleWarm();}};
+cvOut.addEventListener('pointerup',endPaint);cvOut.addEventListener('pointercancel',endPaint);
+cvOut.addEventListener('pointerleave',()=>{ring.hidden=true;});
+
+/* 魔棒：按源图颜色选出一块，写入手动蒙版 */
+function wandRegion(i,sx,sy,seed){
+  const W=G.W,H=G.H,n=W*H,f=G.frames[i].data,t2=V.wtol*V.wtol*3;
+  const near=k=>{const j=k*4;if(f[j+3]<=8)return false;const dr=f[j]-seed[0],dg=f[j+1]-seed[1],db=f[j+2]-seed[2];return dr*dr+dg*dg+db*db<=t2;};
+  const reg=new Uint8Array(n);let cnt=0;
+  if(V.wcontig){
+    const k0=sy*W+sx;if(!near(k0))return null;
+    const st=new Int32Array(n);let sp=0;reg[k0]=1;st[sp++]=k0;cnt=1;
+    while(sp>0){
+      const k=st[--sp],x=k%W;
+      if(x>0&&!reg[k-1]&&near(k-1)){reg[k-1]=1;st[sp++]=k-1;cnt++;}
+      if(x<W-1&&!reg[k+1]&&near(k+1)){reg[k+1]=1;st[sp++]=k+1;cnt++;}
+      if(k>=W&&!reg[k-W]&&near(k-W)){reg[k-W]=1;st[sp++]=k-W;cnt++;}
+      if(k<n-W&&!reg[k+W]&&near(k+W)){reg[k+W]=1;st[sp++]=k+W;cnt++;}
+    }
+  }else{for(let k=0;k<n;k++)if(near(k)){reg[k]=1;cnt++;}}
+  if(!cnt)return null;
+  for(let s=0;s<V.wgrow;s++){
+    const add=[];
+    for(let k=0;k<n;k++){
+      if(reg[k])continue;const x=k%W;
+      if((x>0&&reg[k-1]===1)||(x<W-1&&reg[k+1]===1)||(k>=W&&reg[k-W]===1)||(k<n-W&&reg[k+W]===1))add.push(k);
+    }
+    for(const k of add)reg[k]=1;
+  }
+  return reg;
+}
+function wandAt(pt,val){
+  const sx=Math.floor(pt.x),sy=Math.floor(pt.y),W=G.W,H=G.H;
+  if(sx<0||sy<0||sx>=W||sy>=H)return;
+  const f0=G.frames[curRaw].data,k=(sy*W+sx)*4;
+  if(f0[k+3]<=8){say(t('点到的是已经透明的地方'),2500);return;}
+  const seed=[f0[k],f0[k+1],f0[k+2]];
+  strokeEntry=new Map();let hit=0;
+  const frames=V.allF?G.frames.map((_,i)=>i):[curRaw];
+  for(const i of frames){
+    const reg=wandRegion(i,sx,sy,seed);if(!reg)continue;
+    snap(i);let m=manual[i];if(!m){m=new Uint8Array(W*H);manual[i]=m;}
+    for(let q=0;q<reg.length;q++)if(reg[q])m[q]=val;
+    manVer[i]++;hit++;
+  }
+  pushEntry(strokeEntry);strokeEntry=null;
+  draw();scheduleWarm();
+  say(hit?t(val===1?'已擦除这块颜色{0}，Ctrl+Z 可撤销':'已恢复这块颜色{0}，Ctrl+Z 可撤销',V.allF?t('（{0} 帧）',hit):''):t('这个位置没有选中任何像素'),2500);
+}
+
+/* 打开文件、拖放、粘贴 */
+$('#btnOpen').onclick=()=>$('#file').click();
+$('#btnBatch').onclick=()=>$('#fileBatch').click();
+$('#btnBatchDir').onclick=()=>$('#fileDir').click();
+$('#file').addEventListener('change',e=>{const fs=[...e.target.files];e.target.value='';if(fs.length>1){say(t('选了多个文件，只载入第一个。要一次处理多个，请用「批量处理」'),5000);}openFile(fs[0]);});
+$('#fileBatch').addEventListener('change',e=>{const fs=[...e.target.files];e.target.value='';startBatch(fs);});
+$('#fileDir').addEventListener('change',e=>{const fs=[...e.target.files];e.target.value='';startBatch(fs);});
+$('#sampleW').onclick=()=>makeSample(false);
+$('#sampleB').onclick=()=>makeSample(true);
+let dragN=0;
+window.addEventListener('dragenter',e=>{e.preventDefault();dragN++;document.body.classList.add('dragging');});
+window.addEventListener('dragleave',e=>{e.preventDefault();dragN=Math.max(0,dragN-1);if(!dragN)document.body.classList.remove('dragging');});
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{
+  e.preventDefault();dragN=0;document.body.classList.remove('dragging');
+  const fs=e.dataTransfer?[...e.dataTransfer.files]:[];
+  if(fs.length>1)startBatch(fs);else if(fs.length)openFile(fs[0]);
+});
+document.addEventListener('paste',e=>{
+  const fs=e.clipboardData?[...e.clipboardData.files]:[];
+  if(fs.length){e.preventDefault();openFile(fs[0]);}
+});
+new ResizeObserver(()=>{layout();updateDockPad();}).observe(mat);
+
+/* ============ 导出 ============ */
+function makePlan(sOver){
+  const list=[...new Set(seq)];
+  const p0=getProcessed(list[0]);
+  let cx=0,cy=0,cw=p0.PW,ch=p0.PH;
+  if(V.crop){
+    let x0=1e9,y0=1e9,x1=-1,y1=-1;
+    for(const raw of list){
+      const pr=getProcessed(raw),d=pr.data,W=pr.PW,H=pr.PH;
+      for(let y=0;y<H;y++){
+        const r=y*W*4+3;
+        for(let x=0;x<W;x++)if(d[r+x*4]>8){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
+      }
+    }
+    if(x1>=0){
+      const pd=V.cropPad;
+      cx=Math.max(0,x0-pd);cy=Math.max(0,y0-pd);
+      cw=Math.min(p0.PW,x1+1+pd)-cx;ch=Math.min(p0.PH,y1+1+pd)-cy;
+    }
+  }
+  const s=sOver||V.xscale;
+  const W=Math.max(1,Math.round(cw*s)),H=Math.max(1,Math.round(ch*s));
+  return {cx,cy,cw,ch,W,H,s,identity:cx===0&&cy===0&&cw===p0.PW&&ch===p0.PH&&s===1&&V.obg==='none'};
+}
+function updateDock(){
+  const info=$('#dockInfo');
+  if(!G||!seq.length){info.textContent='';return;}
+  const pr=cache[curRaw]&&cache[curRaw].ver===ver?cache[curRaw]:null;
+  const w=pr?pr.PW:G.W,h=pr?pr.PH:G.H;
+  let ms=0;for(const r of seq)ms+=frameDelay(r);
+  info.textContent=t('输出 {0}×{1}{2} · {3} 帧 · {4} 秒',Math.round(w*V.xscale),Math.round(h*V.xscale),V.crop?t('（裁边前）'):'',seq.length,(ms/1000).toFixed(2));
+}
+function updateDockPad(){
+  const h=$('#dock').offsetHeight||110;
+  document.documentElement.style.setProperty('--dock-h',h+'px');
+  document.body.style.paddingBottom=(h+24)+'px';
+}
+function makeGrad(x,w,h){
+  const g=V.obgDir==='h'?x.createLinearGradient(0,0,w,0):x.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,V.obg1);g.addColorStop(1,V.obg2);return g;
+}
+function finalCanvas(raw,plan){
+  const pr=getProcessed(raw),c=document.createElement('canvas');c.width=plan.W;c.height=plan.H;
+  const x=c.getContext('2d');
+  if(V.obg!=='none'){x.fillStyle=V.obg==='solid'?V.obg1:makeGrad(x,plan.W,plan.H);x.fillRect(0,0,plan.W,plan.H);}
+  tmpC.width=pr.PW;tmpC.height=pr.PH;tmpX.putImageData(new ImageData(pr.data,pr.PW,pr.PH),0,0);
+  x.imageSmoothingEnabled=!V.pixel;x.imageSmoothingQuality='high';
+  x.drawImage(tmpC,plan.cx,plan.cy,plan.cw,plan.ch,0,0,plan.W,plan.H);
+  return c;
+}
+function finalRGBA(raw,plan){
+  if(plan.identity)return getProcessed(raw).data;
+  return finalCanvas(raw,plan).getContext('2d').getImageData(0,0,plan.W,plan.H).data;
+}
+const toBlob=(c,type,q)=>new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error(t('图片编码失败'))),type||'image/png',q));
+function baseName(){return (G.name||t('动图')).replace(/\.[a-z0-9]+$/i,'').replace(/[^\p{L}\p{N}_\-]+/gu,'_').slice(0,60)||t('动图');}
+function exportList(){return seq.map(raw=>({raw:raw,ms:frameDelay(raw)}));}
+function parsePng(u8){
+  const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength),ch=[];let p=8;
+  while(p+12<=u8.length){
+    const len=dv.getUint32(p),type=String.fromCharCode(u8[p+4],u8[p+5],u8[p+6],u8[p+7]);
+    ch.push({type:type,data:u8.subarray(p+8,p+8+len),raw:u8.subarray(p,p+12+len)});p+=12+len;
+  }
+  return ch;
+}
+function webpChunks(u){
+  const dv=new DataView(u.buffer,u.byteOffset,u.byteLength),out=[];let p=12;
+  while(p+8<=u.length){
+    const cc=String.fromCharCode(u[p],u[p+1],u[p+2],u[p+3]),len=dv.getUint32(p+4,true),total=8+len+(len&1);
+    if(cc==='ALPH'||cc==='VP8 '||cc==='VP8L')out.push(u.subarray(p,Math.min(u.length,p+total)));
+    p+=total;
+  }
+  return out;
+}
+function riffChunk(cc,payload){
+  const len=payload.length,out=new Uint8Array(8+len+(len&1)),dv=new DataView(out.buffer);
+  for(let i=0;i<4;i++)out[i]=cc.charCodeAt(i);
+  dv.setUint32(4,len,true);out.set(payload,8);return out;
+}
+const u24=v=>[v&255,(v>>8)&255,(v>>16)&255];
+/* 每种格式一个渲染函数：返回 {name, blob} 或 {name, files}，不负责保存，批量处理也复用它们 */
+async function renderGIF(list,plan){
+  const byRaw=new Map();
+  for(const it of list)if(!byRaw.has(it.raw))byRaw.set(it.raw,finalRGBA(it.raw,plan));
+  const blob=await encodeGIF(list.map(it=>byRaw.get(it.raw)),plan.W,plan.H,list.map(it=>it.ms),V.gta,V.dither,(a,b)=>sayProgress(t('编码 GIF {0}/{1}',a,b)));
+  return {name:baseName()+t('_抠底')+'.gif',blob:blob};
+}
+async function renderAPNG(list,plan){
+  const png=new Map();let n=0;
+  for(const it of list){
+    if(!png.has(it.raw)){png.set(it.raw,parsePng(new Uint8Array(await (await toBlob(finalCanvas(it.raw,plan))).arrayBuffer())));}
+    if(++n%2===0){sayProgress(t('编码 APNG {0}/{1}',n,list.length));await sleep0();}
+  }
+  const first=png.get(list[0].raw),ihdr=first.find(c=>c.type==='IHDR');
+  for(const ch of png.values()){
+    const h=ch.find(c=>c.type==='IHDR');
+    for(let i=0;i<13;i++)if(h.data[i]!==ihdr.data[i])throw new Error(t('浏览器生成的 PNG 格式不一致，请改用 PNG 序列'));
+  }
+  const W=plan.W,H=plan.H;
+  const parts=[new Uint8Array([137,80,78,71,13,10,26,10]),ihdr.raw];
+  const ac=new DataView(new ArrayBuffer(8));ac.setUint32(0,list.length);ac.setUint32(4,0);
+  parts.push(pngChunk('acTL',new Uint8Array(ac.buffer)));
+  let seqNo=0;
+  list.forEach((it,i)=>{
+    const fc=new DataView(new ArrayBuffer(26));
+    fc.setUint32(0,seqNo++);fc.setUint32(4,W);fc.setUint32(8,H);fc.setUint32(12,0);fc.setUint32(16,0);
+    fc.setUint16(20,it.ms);fc.setUint16(22,1000);fc.setUint8(24,0);fc.setUint8(25,0);
+    parts.push(pngChunk('fcTL',new Uint8Array(fc.buffer)));
+    const idats=png.get(it.raw).filter(c=>c.type==='IDAT');
+    if(i===0)for(const c of idats)parts.push(c.raw);
+    else for(const c of idats){
+      const d=new Uint8Array(4+c.data.length);new DataView(d.buffer).setUint32(0,seqNo++);d.set(c.data,4);
+      parts.push(pngChunk('fdAT',d));
+    }
+  });
+  parts.push(pngChunk('IEND',new Uint8Array(0)));
+  return {name:baseName()+t('_抠底')+'.png',blob:new Blob(parts,{type:'image/png'})};
+}
+async function renderWebP(list,plan){
+  const q=V.wq/100,frames=new Map();let n=0;
+  for(const it of list){
+    if(!frames.has(it.raw)){
+      const b=await toBlob(finalCanvas(it.raw,plan),'image/webp',q);
+      if(b.type!=='image/webp')throw new Error(t('这个浏览器不能编码 WebP，请改用 APNG 或 GIF'));
+      const u=new Uint8Array(await b.arrayBuffer());
+      const ch=webpChunks(u);if(!ch.length)throw new Error(t('WebP 编码结果无法识别'));
+      frames.set(it.raw,ch);
+    }
+    if(++n%2===0){sayProgress(t('编码 WebP {0}/{1}',n,list.length));await sleep0();}
+  }
+  const W=plan.W,H=plan.H;
+  const chunks=[];
+  chunks.push(riffChunk('VP8X',new Uint8Array([0x12,0,0,0].concat(u24(W-1),u24(H-1)))));
+  chunks.push(riffChunk('ANIM',new Uint8Array([0,0,0,0,0,0])));
+  for(const it of list){
+    const fr=frames.get(it.raw);let tot=0;for(const c of fr)tot+=c.length;
+    const pl=new Uint8Array(16+tot);
+    pl.set([].concat(u24(0),u24(0),u24(W-1),u24(H-1),u24(it.ms),[0x03]),0);
+    let o=16;for(const c of fr){pl.set(c,o);o+=c.length;}
+    chunks.push(riffChunk('ANMF',pl));
+  }
+  let tot=4;for(const c of chunks)tot+=c.length;
+  const head=new Uint8Array(12),dv=new DataView(head.buffer);
+  head.set([0x52,0x49,0x46,0x46],0);dv.setUint32(4,tot,true);head.set([0x57,0x45,0x42,0x50],8);
+  return {name:baseName()+t('_抠底')+'.webp',blob:new Blob([head].concat(chunks),{type:'image/webp'})};
+}
+async function renderZip(list,plan){
+  const files=[],cb=new Map();
+  for(let i=0;i<list.length;i++){
+    const it=list[i];
+    if(!cb.has(it.raw))cb.set(it.raw,new Uint8Array(await (await toBlob(finalCanvas(it.raw,plan))).arrayBuffer()));
+    files.push({name:'frame_'+String(i+1).padStart(3,'0')+'.png',data:cb.get(it.raw)});
+    if(i%2===1){sayProgress(t('打包 {0}/{1}',i+1,list.length));await sleep0();}
+  }
+  const meta={width:plan.W,height:plan.H,frames:list.length,delaysMs:list.map(it=>it.ms)};
+  files.push({name:'frames.json',data:new TextEncoder().encode(JSON.stringify(meta,null,2))});
+  return {name:baseName()+t('_序列帧')+'.zip',files:files};
+}
+async function renderSprite(list,plan){
+  const n=list.length;
+  const cols=V.cols>0?Math.min(V.cols,n):Math.ceil(Math.sqrt(n)),rows=Math.ceil(n/cols);
+  const SW=cols*plan.W,SH=rows*plan.H;
+  if(SW>16384||SH>16384||SW*SH>150e6)throw new Error(t('精灵图太大（{0}×{1}），请减少列数、帧数或尺寸',SW,SH));
+  const c=document.createElement('canvas');c.width=SW;c.height=SH;const x=c.getContext('2d');
+  for(let i=0;i<n;i++)x.drawImage(finalCanvas(list[i].raw,plan),(i%cols)*plan.W,Math.floor(i/cols)*plan.H);
+  return {name:baseName()+t('_精灵图_')+cols+'x'+rows+'.png',blob:await toBlob(c),note:t('精灵图 {0} 列 × {1} 行，单帧 {2}×{3}',cols,rows,plan.W,plan.H)};
+}
+async function renderExport(fmt){
+  await ensureAll(t('处理中'));
+  const list=exportList(),plan=makePlan();
+  if(plan.W*plan.H*list.length>500e6)throw new Error(t('输出太大了（{0}×{1}，{2} 帧），请缩小尺寸或减少帧数',plan.W,plan.H,list.length));
+  if(fmt==='gif'&&V.target>0){
+    const limit=V.target*1048576;let s=V.xscale,r,pl=plan;
+    for(let pass=0;pass<5;pass++){
+      r=await renderGIF(list,pl);
+      if(r.blob.size<=limit)break;
+      s=s*Math.sqrt(limit/r.blob.size)*0.93;
+      if(s<0.08)break;
+      pl=makePlan(s);
+    }
+    if(r.blob.size>limit)r.note=t('没能压到 {0} MB，当前 {1}。可以试试抽帧或关掉抖动',V.target,fmtBytes(r.blob.size));
+    else if(pl.s!==V.xscale)r.note=t('为了达到目标大小，尺寸缩到了 {0}%（{1}×{2}）',Math.round(pl.s/V.xscale*100),pl.W,pl.H);
+    return r;
+  }
+  const fn={gif:renderGIF,apng:renderAPNG,webp:renderWebP,zip:renderZip,sprite:renderSprite}[fmt];
+  return fn(list,plan);
+}
+async function saveFile(name,blob){
+  let dl=null;
+  if(window.claude&&window.claude.use){try{dl=await window.claude.use('downloads');}catch(e){dl=null;}}
+  if(dl){
+    try{await dl.save({filename:name,data:blob});say(t('已保存 {0}（{1}）',name,fmtBytes(blob.size)),5000);}
+    catch(e){say(e&&e.code==='declined'?t('已取消保存'):t('保存失败：{0}',(e&&(e.message||e.code))||t('未知原因')),5000);}
+    return;
+  }
+  if(window.claude){say(t('当前环境不支持保存文件，请换个浏览器打开'),6000);return;}
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),15000);
+  say(t('已导出 {0}（{1}）',name,fmtBytes(blob.size)),5000);
+}
+async function doExport(){
+  if(busy||!G||!seq.length)return;
+  busy=true;pause();$('#goExport').disabled=true;$('#goExport').textContent=t('正在导出…');
+  try{
+    const r=await renderExport(V.fmt);
+    const blob=r.blob||makeZip(r.files);
+    await saveFile(r.name,blob);
+    if(r.note)setTimeout(()=>say(r.note,5000),1800);
+  }catch(e){console.error(e);say(t('导出失败：{0}',e&&e.message||e),7000);}
+  finally{busy=false;$('#goExport').textContent=t('导出 {0}',t(FMT_LABEL[V.fmt]));rebuildSeq();}
+}
+$('#goExport').onclick=doExport;
+function setFmt(f){
+  V.fmt=f;
+  document.querySelectorAll('[data-fmt]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.fmt===f));
+  if(!busy)$('#goExport').textContent=t('导出 {0}',t(FMT_LABEL[f]));
+  $('#optGif1').hidden=f!=='gif';$('#optTarget').hidden=f!=='gif';$('#optGif2').hidden=f!=='gif';
+  $('#optWebp').hidden=f!=='webp';$('#optSprite').hidden=f!=='sprite';
+  $('#fmtHint').textContent=t(FMT_HINT[f]);
+}
+document.querySelectorAll('[data-fmt]').forEach(b=>b.onclick=()=>setFmt(b.dataset.fmt));
+
+/* ============ 批量处理 ============ */
+async function startBatch(files){
+  const ok=files.filter(f=>/\.(gif|apng|webp|png|jpe?g)$/i.test(f.name)||/^image\//.test(f.type));
+  if(!ok.length){say(t('没有找到可处理的图片（支持 GIF、APNG、WebP、PNG、JPG）'),5000);return;}
+  if(busy)return;
+  if(ok.length===1){openFile(ok[0]);return;}
+  busy=true;pause();warmTok++;clearTimeout(warmTimer);$('#goExport').disabled=true;
+  const saved={G,keep,manual,manVer,cache,thumbVer,thumbs,curRaw,pos,seq,bg:P.bg.slice()};
+  const out=[],failed=[];
+  try{
+    for(let k=0;k<ok.length;k++){
+      const f=ok[k];sayProgress(t('批量 {0}/{1}：{2}',k+1,ok.length,f.name));await sleep0();
+      try{
+        const g=await decodeAny(f);
+        G={name:f.name,W:g.W,H:g.H,frames:g.frames,loop:g.loop};
+        const n=g.frames.length;
+        keep=new Array(n).fill(true);manual=new Array(n).fill(null);manVer=new Array(n).fill(0);cache=[];thumbVer=[];thumbs=[];
+        ver++;curRaw=0;pos=0;
+        P.bg=detectBg(g.frames[0].data,g.W,g.H);
+        seq=computeSeq();
+        const r=await renderExport(V.fmt);
+        const base=baseName()+'/';
+        if(r.files)for(const x of r.files)out.push({name:base+x.name,data:x.data});
+        else out.push({name:r.name,data:new Uint8Array(await r.blob.arrayBuffer())});
+      }catch(e){failed.push(t('{0}（{1}）',f.name,e&&e.message||t('失败')));}
+      G=null;cache=[];
+    }
+  }finally{
+    G=saved.G;keep=saved.keep;manual=saved.manual;manVer=saved.manVer;cache=saved.cache;thumbVer=saved.thumbVer;thumbs=saved.thumbs;
+    curRaw=saved.curRaw;pos=saved.pos;seq=saved.seq;P.bg=saved.bg;ver++;
+    busy=false;
+  }
+  if(G){setBg(P.bg);onControl();}
+  $('#goExport').textContent=t('导出 {0}',t(FMT_LABEL[V.fmt]));rebuildSeq();
+  if(!out.length){say(t('批量处理失败：{0}',failed.join(t('；'))),8000);return;}
+  const names=new Set(),uniq=[];
+  for(const o of out){let nm=o.name,i=2;while(names.has(nm)){nm=o.name.replace(/(\.[^.\/]+)$/,'_'+(i++)+'$1');}names.add(nm);uniq.push({name:nm,data:o.data});}
+  await saveFile(t('批量抠底_{0}个文件',uniq.length)+'.zip',makeZip(uniq));
+  if(failed.length)setTimeout(()=>say(t('{0} 个文件失败：{1}',failed.length,failed.join(t('；'))),9000),1500);
+}
+
+/* ============ 启动 ============ */
+window.__gifTool={get G(){return G;},get P(){return P;},get V(){return V;},get seq(){return seq;},
+  getProcessed,decodeGIF,decodeAny,encodeGIF,loadBytes,renderExport,setFmt,matte,buildPalette,lzwEncode,lzwDecode,onControl,makeZip};
+if(!(()=>{try{return document.createElement('canvas').toDataURL('image/webp').indexOf('data:image/webp')===0;}catch(e){return false;}})()){
+  $('#fmtWebp').disabled=true;$('#fmtWebp').title=t('这个浏览器不能编码 WebP');
+}
+{const sel=$('#lang');for(const l of LANGS){const o=document.createElement('option');o.value=l[0];o.textContent=l[1];sel.appendChild(o);}
+sel.addEventListener('change',()=>applyLang(sel.value,true));}
+readControls();applyViewBg();setFmt('gif');applyLang(pickLang(),false);updateDockPad();updateHistBtns();
+makeSample(false);
+})();
+</script>
