@@ -21,7 +21,7 @@ Remova fundos brancos, pretos ou de qualquer cor sólida de GIFs animados — di
 
 - Deteta o fundo automaticamente (até os falsos xadrezes «transparentes»); o conta-gotas adiciona até 6 cores de fundo
 - **Proteção contra fugas** e **preenchimento automático de frestas**: linhas finas da origem já não abrem fendas no sujeito
-- **Varinha mágica** inteligente (segue gradientes e texturas, para nos contornos; arraste para ajustar a tolerância, Shift/Alt somam/subtraem, acompanha o sujeito entre fotogramas), laço, retângulo, **pincel inteligente**, pincel de preenchimento; em fundos complexos, **marque o sujeito** com dois pinceles e aplique a todos os fotogramas; anular / refazer em tudo
+- **Varinha mágica** inteligente (segue gradientes e texturas, para nos contornos; arraste para ajustar a tolerância, Shift/Alt somam/subtraem, acompanha o sujeito entre fotogramas), laço, retângulo, **pincel inteligente**, pincel de preenchimento; anular / refazer em tudo
 - Contorno, sombra, brilho, cor; reverso, vaivém, salto de fotogramas, novos fundos
 - Zoom e deslocamento, mantenha **C** para ver o original, pontos de início / fim, copiar um fotograma como PNG transparente, atalhos de teclado, definições memorizadas
 - Entrada: GIF, APNG, WebP, PNG, JPG, colar, pastas em lote

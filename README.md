@@ -21,7 +21,7 @@ Remove white, black or any solid background from animated GIFs — right in your
 
 - Auto-detects the background (even fake “transparent” checkerboards); eyedropper adds up to 6 background colours
 - **Leak guard** and **auto-fill gaps** stop thin lines in the source from cutting slits into the subject
-- Smart **magic wand** (follows gradients, stops at outlines; drag to tune tolerance, Shift/Alt to add/subtract, tracks the subject across frames), lasso, marquee, **smart brush**, fill brush; **mark the subject** with two brushes to cut out complex photo backgrounds, then follow all frames; undo / redo for everything
+- Smart **magic wand** (follows gradients, stops at outlines; drag to tune tolerance, Shift/Alt to add/subtract, tracks the subject across frames), lasso, marquee, **smart brush**, fill brush; undo / redo for everything
 - Outline, shadow, glow, colour tweaks; reverse, ping-pong, frame skipping, new backgrounds
 - Zoom & pan, hold **C** to peek at the original, in/out points, copy a frame as transparent PNG, keyboard shortcuts, settings remembered
 - Input: GIF, APNG, WebP, PNG, JPG, paste, batch folders
