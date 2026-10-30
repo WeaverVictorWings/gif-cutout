@@ -21,7 +21,7 @@ Supprimez le fond blanc, noir ou de toute couleur unie des GIF animés — direc
 
 - Détecte automatiquement le fond (même les faux damiers « transparents ») ; la pipette ajoute jusqu’à 6 couleurs de fond
 - **Anti-fuite** et **comblement auto des fentes** : les lignes fines de la source ne creusent plus de fentes dans le sujet
-- Pinceau, **pinceau de remplissage** et **baguette magique** (elle suit le sujet d’une image à l’autre) ; annuler / rétablir pour les réglages comme pour les retouches
+- **Baguette magique** intelligente (suit dégradés et textures, s’arrête aux contours ; glissez pour régler la tolérance, Maj/Alt ajoutent/retirent, suit le sujet d’une image à l’autre), lasso, rectangle, **pinceau intelligent**, pinceau de remplissage ; sur fond complexe, **marquez le sujet** avec deux pinceaux puis suivez toutes les images ; annuler / rétablir partout
 - Contour, ombre, lueur, couleur ; inversion, aller-retour, saut d’images, nouveaux fonds
 - Zoom et déplacement, maintenez **C** pour voir l’original, points d’entrée / sortie, copie d’une image en PNG transparent, raccourcis clavier, réglages mémorisés
 - Entrée : GIF, APNG, WebP, PNG, JPG, collage, dossiers par lot

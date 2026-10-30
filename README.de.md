@@ -21,7 +21,7 @@ Entfernen Sie weiße, schwarze oder beliebige einfarbige Hintergründe aus animi
 
 - Erkennt den Hintergrund automatisch (auch falsche „transparente“ Schachbretter); die Pipette fügt bis zu 6 Hintergrundfarben hinzu
 - **Leckschutz** und **automatisches Füllen von Spalten**: feine Linien im Original schneiden keine Schlitze mehr ins Motiv
-- Pinsel, **Füllpinsel** und **Zauberstab** (folgt dem Motiv über alle Bilder); Rückgängig / Wiederholen für Einstellungen und Korrekturen
+- Intelligenter **Zauberstab** (folgt Verläufen und Texturen, stoppt an Konturen; Toleranz durch Ziehen, Umschalt/Alt fügen hinzu/ziehen ab, folgt dem Motiv über alle Bilder), Lasso, Rahmen, **intelligenter Pinsel**, Füllpinsel; bei komplexem Hintergrund **Motiv markieren** mit zwei Pinseln und auf alle Bilder anwenden; Rückgängig / Wiederholen überall
 - Kontur, Schatten, Leuchten, Farbkorrektur; rückwärts, Hin-und-zurück, Bilder auslassen, neue Hintergründe
 - Zoomen und Verschieben, **C** gedrückt halten zeigt das Original, Start-/Endpunkt, Bild als transparentes PNG kopieren, Tastenkürzel, gemerkte Einstellungen
 - Eingabe: GIF, APNG, WebP, PNG, JPG, Einfügen, Ordner im Stapel
