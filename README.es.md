@@ -27,6 +27,7 @@ Quita el fondo blanco, negro o de cualquier color sólido de GIFs animados, dire
 - Entrada: GIF, APNG, WebP, PNG, JPG, pegar, carpetas por lotes
 - Salida: GIF (tamaño objetivo, número de colores, premezcla de bordes), APNG, WebP animado, secuencia PNG (zip), hoja de sprites; varios formatos a la vez en un solo zip
 - Preajustes para stickers (WeChat, Discord, Slack, LINE), relleno cuadrado, recuadro de recorte, fusión de fotogramas repetidos, estimación de tamaño
+- También: **vídeo → animación** (mp4 / webm, rango, fps, tamaño), **varias imágenes → una animación**, **subtítulos**; tus ediciones manuales se **guardan automáticamente en el navegador** y se ofrecen al reabrir el mismo archivo; lista de comprobación antes de exportar y preajuste de WhatsApp; **recorte con IA** opcional y experimental (el modelo se ejecuta en el navegador y se descarga la primera vez)
 - 10 idiomas, detección automática, cambio arriba a la izquierda
 
 ## Limitaciones
@@ -34,6 +35,7 @@ Quita el fondo blanco, negro o de cualquier color sólido de GIFs animados, dire
 - La transparencia de GIF es solo sí/no, por eso los bordes salen algo dentados. Para bordes suaves usa APNG o WebP.
 - Leer animaciones APNG/WebP requiere un navegador con `ImageDecoder` (Chrome, Edge o Safari recientes); en otros solo se carga el primer fotograma.
 - Degradados, sombras o fondos con textura no se pueden quitar a la perfección con un método de color sólido; usa las herramientas manuales.
+- El recorte con IA es experimental: requiere acceso a cdn.jsdelivr.net / unpkg.com y descargar un modelo; no se ha verificado con todos los modelos y en animaciones muy movidas el resultado puede parpadear entre fotogramas.
 
 ## Licencia
 

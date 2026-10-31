@@ -27,6 +27,7 @@ Entfernen Sie weiße, schwarze oder beliebige einfarbige Hintergründe aus animi
 - Eingabe: GIF, APNG, WebP, PNG, JPG, Einfügen, Ordner im Stapel
 - Ausgabe: GIF (Zielgröße, Farbanzahl, Kanten vormischen), APNG, animiertes WebP, PNG-Sequenz (zip), Sprite-Sheet; mehrere Formate gleichzeitig in einer ZIP-Datei
 - Sticker-Voreinstellungen (WeChat, Discord, Slack, LINE), Auffüllen zu Quadrat, Zuschneiderahmen, doppelte Bilder zusammenfassen, Größenschätzung
+- Außerdem: **Video → Animation** (mp4 / webm, Bereich, fps, Größe), **mehrere Bilder → eine Animation**, **Untertitel**; manuelle Änderungen werden **automatisch im Browser gespeichert** und beim erneuten Öffnen derselben Datei angeboten; Prüfliste vor dem Export und WhatsApp-Voreinstellung; optionale, experimentelle **KI-Freistellung** (Modell läuft im Browser, wird beim ersten Mal geladen)
 - 10 Sprachen, automatisch erkannt, Umschalten oben links
 
 ## Einschränkungen
@@ -34,6 +35,7 @@ Entfernen Sie weiße, schwarze oder beliebige einfarbige Hintergründe aus animi
 - GIF-Transparenz gibt es nur an/aus, daher sind die Kanten leicht gezackt. Für weiche Kanten APNG oder WebP verwenden.
 - Das Lesen von APNG-/WebP-Animationen erfordert einen Browser mit `ImageDecoder` (aktuelles Chrome, Edge, Safari); andere laden nur das erste Bild.
 - Verläufe, Schatten oder strukturierte Hintergründe lassen sich mit einer Volltonfarbe nicht perfekt entfernen; nutzen Sie die manuellen Werkzeuge.
+- Die KI-Freistellung ist experimentell: Sie braucht Zugriff auf cdn.jsdelivr.net / unpkg.com und einen Modell-Download; sie wurde nicht mit allen Modellen geprüft, und bei sehr bewegten Animationen kann das Ergebnis zwischen Bildern flackern.
 
 ## Lizenz
 
