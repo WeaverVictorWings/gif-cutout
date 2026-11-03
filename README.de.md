@@ -28,6 +28,7 @@ Entfernen Sie weiße, schwarze oder beliebige einfarbige Hintergründe aus animi
 - Ausgabe: GIF (Zielgröße, Farbanzahl, Kanten vormischen), APNG, animiertes WebP, PNG-Sequenz (zip), Sprite-Sheet; mehrere Formate gleichzeitig in einer ZIP-Datei
 - Sticker-Voreinstellungen (WeChat, Discord, Slack, LINE), Auffüllen zu Quadrat, Zuschneiderahmen, doppelte Bilder zusammenfassen, Größenschätzung
 - Außerdem: **Video → Animation** (mp4 / webm, Bereich, fps, Größe), **mehrere Bilder → eine Animation**, **Untertitel**; manuelle Änderungen werden **automatisch im Browser gespeichert** und beim erneuten Öffnen derselben Datei angeboten; Prüfliste vor dem Export und WhatsApp-Voreinstellung; optionale, experimentelle **KI-Freistellung** (Modell läuft im Browser, wird beim ersten Mal geladen)
+- Sauberere Kanten: Nach dem Freistellen werden **verstreute Fragmente** um das Motiv automatisch gelöscht (nie Bereiche, die du von Hand wiederhergestellt hast), und die **Bildglättung** reduziert Flackern in ruhigen Bereichen. Außerdem: **Sprite-Sheet teilen**, **Schleifen-Check** mit Kürzen per Klick, **Farbton**-Änderung und **Meine Vorgaben** (im Browser gespeichert).
 - 10 Sprachen, automatisch erkannt, Umschalten oben links
 
 ## Einschränkungen

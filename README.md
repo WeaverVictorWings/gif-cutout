@@ -28,6 +28,7 @@ Remove white, black or any solid background from animated GIFs — right in your
 - Export: GIF (target file size, colour count, edge pre-blend), APNG, animated WebP, PNG sequence (zip), sprite sheet — several formats at once in one zip
 - Sticker presets (WeChat, Discord, Slack, LINE), square padding, crop box, merge duplicate frames, live size estimate
 - Input also: **video → animation** (mp4/webm, pick range, fps, size), **many images → one animation**; add **captions**; your manual edits are **auto-saved in your browser** and offered back when you reopen the same file; a pre-export checklist and WhatsApp preset; optional, experimental **AI cutout** (model runs in your browser, downloaded on first use)
+- Cleaner edges: after cutting out, **stray fragments** around the subject are erased automatically (never in areas you restored by hand), and **frame smoothing** cuts flicker in still areas. Also: split a **sprite sheet** into an animation, **loop check** with one-click trim, **hue** shift, and **my presets** (saved in your browser).
 - 10 languages, auto-detected, switch at the top-left
 
 ## Limits

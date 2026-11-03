@@ -28,6 +28,7 @@ Quita el fondo blanco, negro o de cualquier color sólido de GIFs animados, dire
 - Salida: GIF (tamaño objetivo, número de colores, premezcla de bordes), APNG, WebP animado, secuencia PNG (zip), hoja de sprites; varios formatos a la vez en un solo zip
 - Preajustes para stickers (WeChat, Discord, Slack, LINE), relleno cuadrado, recuadro de recorte, fusión de fotogramas repetidos, estimación de tamaño
 - También: **vídeo → animación** (mp4 / webm, rango, fps, tamaño), **varias imágenes → una animación**, **subtítulos**; tus ediciones manuales se **guardan automáticamente en el navegador** y se ofrecen al reabrir el mismo archivo; lista de comprobación antes de exportar y preajuste de WhatsApp; **recorte con IA** opcional y experimental (el modelo se ejecuta en el navegador y se descarga la primera vez)
+- Bordes más limpios: tras recortar, los **fragmentos sueltos** alrededor del sujeto se borran solos (nunca lo que restauraste a mano), y el **suavizado entre fotogramas** reduce el parpadeo en zonas quietas. Además: **dividir hojas de sprites** en animación, **revisión de bucle** con recorte en un clic, cambio de **tono** y **mis ajustes** (guardados en tu navegador).
 - 10 idiomas, detección automática, cambio arriba a la izquierda
 
 ## Limitaciones

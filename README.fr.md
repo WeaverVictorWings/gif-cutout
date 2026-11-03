@@ -28,6 +28,7 @@ Supprimez le fond blanc, noir ou de toute couleur unie des GIF animés — direc
 - Sortie : GIF (taille cible, nombre de couleurs, prémélange des bords), APNG, WebP animé, séquence PNG (zip), planche de sprites ; plusieurs formats à la fois dans un seul zip
 - Préréglages pour stickers (WeChat, Discord, Slack, LINE), complétion en carré, cadre de recadrage, fusion des images identiques, estimation de la taille
 - Aussi : **vidéo → animation** (mp4 / webm, plage, fps, taille), **plusieurs images → une animation**, **légendes** ; vos retouches manuelles sont **enregistrées automatiquement dans le navigateur** et proposées à la réouverture du même fichier ; liste de vérification avant export et préréglage WhatsApp ; **détourage IA** optionnel et expérimental (le modèle s’exécute dans le navigateur, téléchargé au premier usage)
+- Bords plus propres : après le détourage, les **fragments isolés** autour du sujet sont effacés automatiquement (jamais ce que vous avez restauré à la main), et le **lissage inter-images** réduit le scintillement des zones fixes. Aussi : **découpe de planche de sprites** en animation, **vérification de boucle** avec coupe en un clic, réglage de **teinte** et **mes préréglages** (enregistrés dans le navigateur).
 - 10 langues, détection automatique, changement en haut à gauche
 
 ## Limites
