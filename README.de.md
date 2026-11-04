@@ -36,7 +36,7 @@ Entfernen Sie weiße, schwarze oder beliebige einfarbige Hintergründe aus animi
 - GIF-Transparenz gibt es nur an/aus, daher sind die Kanten leicht gezackt. Für weiche Kanten APNG oder WebP verwenden.
 - Das Lesen von APNG-/WebP-Animationen erfordert einen Browser mit `ImageDecoder` (aktuelles Chrome, Edge, Safari); andere laden nur das erste Bild.
 - Verläufe, Schatten oder strukturierte Hintergründe lassen sich mit einer Volltonfarbe nicht perfekt entfernen; nutzen Sie die manuellen Werkzeuge.
-- Die KI-Freistellung ist experimentell: Sie braucht Zugriff auf cdn.jsdelivr.net / unpkg.com und einen Modell-Download; sie wurde nicht mit allen Modellen geprüft, und bei sehr bewegten Animationen kann das Ergebnis zwischen Bildern flackern.
+- KI-Freistellen ist experimentell: Es braucht Zugriff auf cdn.jsdelivr.net / unpkg.com, und Modelle werden nur geladen, wenn du sie auswählst (5–179 MB, im Browser zwischengespeichert). Zuerst wird das aktuelle Bild getestet, damit du prüfen kannst, bevor alle Bilder verarbeitet werden; verarbeitet werden nur Bilder, die exportiert werden. Kein Modell passt zu jedem Clip („Allgemein, hohe Qualität“ war bei unseren 18 Testclips am zuverlässigsten). Geschwindigkeit im Browser und WebGPU-Beschleunigung hängen von deinem Gerät ab.
 
 ## Lizenz
 

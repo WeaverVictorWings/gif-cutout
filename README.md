@@ -36,7 +36,7 @@ Remove white, black or any solid background from animated GIFs — right in your
 - GIF transparency is on/off only, so edges are slightly jagged. Use APNG or WebP for smooth edges.
 - Reading APNG/WebP animation needs a browser with `ImageDecoder` (recent Chrome, Edge, Safari); others load the first frame only.
 - Gradients, shadows or textured backgrounds cannot be removed perfectly with a solid-colour approach; use the manual tools.
-- AI cutout is experimental: it needs access to cdn.jsdelivr.net / unpkg.com and a model download; it has not been verified against every model, and results on busy animations can flicker between frames.
+- AI cutout is experimental: it needs access to cdn.jsdelivr.net / unpkg.com, and models are downloaded only when you pick them (5–179 MB, cached in your browser). It first tries the current frame so you can check before processing all frames, and only processes frames you will export. No single model suits every clip (“General, high quality” was the most reliable on our 18 test clips). Browser speed and WebGPU acceleration depend on your device.
 
 ## License
 

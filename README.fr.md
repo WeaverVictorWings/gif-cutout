@@ -36,7 +36,7 @@ Supprimez le fond blanc, noir ou de toute couleur unie des GIF animés — direc
 - La transparence du GIF est tout ou rien, les bords sont donc légèrement crénelés. Utilisez APNG ou WebP pour des bords lisses.
 - La lecture des animations APNG/WebP nécessite un navigateur avec `ImageDecoder` (Chrome, Edge, Safari récents) ; les autres ne chargent que la première image.
 - Les dégradés, ombres ou fonds texturés ne peuvent pas être retirés parfaitement par couleur unie ; utilisez les outils manuels.
-- Le détourage IA est expérimental : il faut accéder à cdn.jsdelivr.net / unpkg.com et télécharger un modèle ; il n’a pas été vérifié avec tous les modèles et, sur des animations très mouvementées, le résultat peut scintiller d’une image à l’autre.
+- Le détourage IA est expérimental : il nécessite l'accès à cdn.jsdelivr.net / unpkg.com, et les modèles ne sont téléchargés que lorsque vous les choisissez (5–179 Mo, mis en cache dans votre navigateur). Il essaie d'abord l'image actuelle pour que vous vérifiiez avant de traiter toutes les images, et ne traite que celles qui seront exportées. Aucun modèle ne convient à tous les clips (« Général, haute qualité » a été le plus fiable sur nos 18 clips de test). La vitesse dans le navigateur et l'accélération WebGPU dépendent de votre appareil.
 
 ## Licence
 

@@ -36,7 +36,7 @@ Quita el fondo blanco, negro o de cualquier color sólido de GIFs animados, dire
 - La transparencia de GIF es solo sí/no, por eso los bordes salen algo dentados. Para bordes suaves usa APNG o WebP.
 - Leer animaciones APNG/WebP requiere un navegador con `ImageDecoder` (Chrome, Edge o Safari recientes); en otros solo se carga el primer fotograma.
 - Degradados, sombras o fondos con textura no se pueden quitar a la perfección con un método de color sólido; usa las herramientas manuales.
-- El recorte con IA es experimental: requiere acceso a cdn.jsdelivr.net / unpkg.com y descargar un modelo; no se ha verificado con todos los modelos y en animaciones muy movidas el resultado puede parpadear entre fotogramas.
+- El recorte con IA es experimental: necesita acceso a cdn.jsdelivr.net / unpkg.com y los modelos se descargan solo cuando los eliges (5–179 MB, en caché en tu navegador). Primero prueba el fotograma actual para que lo revises antes de procesar todos, y solo procesa los fotogramas que vas a exportar. Ningún modelo sirve para todos los clips («General, alta calidad» fue el más fiable en nuestros 18 clips de prueba). La velocidad en el navegador y la aceleración WebGPU dependen de tu dispositivo.
 
 ## Licencia
 

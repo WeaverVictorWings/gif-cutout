@@ -36,7 +36,7 @@ Remova fundos brancos, pretos ou de qualquer cor sólida de GIFs animados — di
 - A transparência do GIF é só ligada/desligada, por isso as bordas ficam ligeiramente serrilhadas. Use APNG ou WebP para bordas suaves.
 - Ler animações APNG/WebP requer um navegador com `ImageDecoder` (Chrome, Edge ou Safari recentes); os outros carregam só o primeiro fotograma.
 - Gradientes, sombras ou fundos com textura não se removem na perfeição com cor sólida; use as ferramentas manuais.
-- O recorte com IA é experimental: precisa de acesso a cdn.jsdelivr.net / unpkg.com e de descarregar um modelo; não foi verificado com todos os modelos e, em animações muito agitadas, o resultado pode cintilar entre fotogramas.
+- O recorte por IA é experimental: precisa de acesso a cdn.jsdelivr.net / unpkg.com, e os modelos só são baixados quando você os escolhe (5–179 MB, guardados no navegador). Primeiro testa o quadro atual para você conferir antes de processar todos, e processa apenas os quadros que serão exportados. Nenhum modelo serve para todos os clipes («Geral, alta qualidade» foi o mais confiável nos nossos 18 clipes de teste). A velocidade no navegador e a aceleração WebGPU dependem do seu dispositivo.
 
 ## Licença
 
