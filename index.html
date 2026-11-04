@@ -1729,6 +1729,16 @@ function borderCoverage(fr,W,H,list){
   }
   return tot?hit/tot:1;
 }
+/* 被自动去掉的那部分，颜色是不是真的一样：纯色底几乎没有偏差，照片、视频背景偏差大（只是碰巧落在容差内） */
+function bgNoise(){
+  const src=G.frames[seq[0]||0].data,a=matteAlpha(seq[0]||0),n=G.W*G.H;let c=0,sd=0;
+  for(let k=0;k<n;k++){
+    const j=k*4;if(src[j+3]<=8||a[k]>8)continue;
+    let best=255;for(const b of P.bgs){const d=Math.max(Math.abs(src[j]-b[0]),Math.abs(src[j+1]-b[1]),Math.abs(src[j+2]-b[2]));if(d<best)best=d;}
+    c++;sd+=best;
+  }
+  return c>n*0.01?sd/c:0;
+}
 function autoBg(fr,W,H){
   if(hasAlpha(fr))return {list:[unusedColor(fr)],checker:false,transparent:true};
   const ck=detectChecker(fr,W,H);
@@ -1768,7 +1778,7 @@ function installGif(g,name){
   $('#cxBar').hidden=!(!ab.transparent&&!ab.checker&&borderCoverage(g.frames[0].data,g.W,g.H,ab.list)<0.35);
   if(!ab.transparent&&$('#cxBar').hidden)setTimeout(()=>{/* 自动去底之后几乎没少东西，说明背景不是纯色，提示用户 */
     if(!G||G.frames!==g.frames)return;const d=getProcessed(seq[0]||0).data;let n=0;for(let k=3;k<d.length;k+=4)if(d[k]>128)n++;
-    if(n/(d.length/4)>0.9)$('#cxBar').hidden=false;
+    if(n/(d.length/4)>0.9||bgNoise()>3)$('#cxBar').hidden=false;
   },600);
   readControls();lastSig=JSON.stringify(P);ctlSnap=snapCtl();
   buildStrip();rebuildSeq();
